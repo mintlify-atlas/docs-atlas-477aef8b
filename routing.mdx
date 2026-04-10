@@ -1,0 +1,152 @@
+---
+title: "Routing in Ant Design Pro"
+description: "Ant Design Pro routes are declared in config/routes.ts. Learn each route property, how to add new pages, and how to opt out of the ProLayout shell."
+---
+
+Ant Design Pro uses [UMI Max](https://umijs.org/docs/max/introduce) for routing. Instead of relying on the file system alone, routes are declared centrally in `config/routes.ts`. This gives you a single place to define every URL in your application, including its component, sidebar icon, title, access guard, and layout behavior.
+
+## How `config/routes.ts` works
+
+UMI reads `config/routes.ts` at build time and generates the client-side router. Each object in the exported array maps a URL path to a React component and optional metadata used by ProLayout to build the sidebar menu.
+
+The file supports a specific set of properties:
+
+| Property    | Purpose |
+|-------------|---------|
+| `path`      | URL path. Supports dynamic segments (`:id`) and wildcards (`*`). |
+| `component` | Path to the React component, relative to `src/pages/`. |
+| `name`      | Route title key. UMI looks up `menu.<name>` in the active locale file. |
+| `icon`      | Ant Design icon name shown in the sidebar (see icon naming below). |
+| `access`    | Access rule key from `src/access.ts` that gates this route. |
+| `routes`    | Child routes array for nested navigation. |
+| `redirect`  | Immediately redirects this path to another URL. |
+| `layout`    | Set to `false` to render the page without ProLayout's shell. |
+| `wrappers`  | Higher-order components that wrap the route, useful for auth checks. |
+
+## A real route example
+
+Here is the admin section from `config/routes.ts`. It shows a parent route with an access guard, a redirect, and a child page:
+
+```typescript
+{
+  path: '/admin',
+  name: 'admin',
+  icon: 'crown',
+  access: 'canAdmin',
+  routes: [
+    {
+      path: '/admin',
+      redirect: '/admin/sub-page',
+    },
+    {
+      path: '/admin/sub-page',
+      name: 'sub-page',
+      component: './Admin',
+    },
+  ],
+},
+```
+
+UMI resolves `./Admin` to `src/pages/Admin.tsx`. The `access: 'canAdmin'` property tells UMI to evaluate the `canAdmin` rule from `src/access.ts` before rendering — users who fail the check are redirected to the 403 page.
+
+<Tip>
+Icon values are derived from Ant Design icon names with the style suffix removed and the first letter lowercased. For example, `<StepBackwardOutlined />` becomes `stepBackward` or `StepBackward`, and `<UserOutlined />` becomes `user` or `User`. Browse available icons at [ant.design/components/icon](https://ant.design/components/icon-cn).
+</Tip>
+
+## Nested routes and layouts
+
+Routes can be nested to any depth. A parent route with a `routes` array acts as a layout wrapper — ProLayout renders the parent's sidebar entry and the child routes beneath it.
+
+```typescript
+{
+  path: '/dashboard',
+  name: 'dashboard',
+  icon: 'dashboard',
+  routes: [
+    {
+      path: '/dashboard',
+      redirect: '/dashboard/analysis',
+    },
+    {
+      name: 'analysis',
+      path: '/dashboard/analysis',
+      component: './dashboard/analysis',
+    },
+    {
+      name: 'monitor',
+      path: '/dashboard/monitor',
+      component: './dashboard/monitor',
+    },
+  ],
+},
+```
+
+The top-level redirect from `/dashboard` to `/dashboard/analysis` ensures the parent path always lands on a concrete page.
+
+### Opting out of the shell layout
+
+Setting `layout: false` on a route removes the ProLayout header and sidebar entirely. Use this for full-screen pages like the login page:
+
+```typescript
+{
+  path: '/user',
+  layout: false,
+  routes: [
+    {
+      path: '/user/login',
+      layout: false,
+      name: 'login',
+      component: './user/login',
+    },
+  ],
+},
+```
+
+## Adding a new route
+
+<Steps>
+  <Step title="Create your page component">
+    Add a new file under `src/pages/`. For example, create `src/pages/reports/index.tsx` with a default-exported React component.
+  </Step>
+  <Step title="Add a locale key">
+    Open `src/locales/en-US/menu.ts` (and any other locale files you support) and add a menu title entry:
+
+    ```typescript
+    'menu.reports': 'Reports',
+    ```
+  </Step>
+  <Step title="Register the route in config/routes.ts">
+    Add your route object to the exported array. Place it at the level that makes sense for your sidebar hierarchy:
+
+    ```typescript
+    {
+      path: '/reports',
+      name: 'reports',
+      icon: 'bar-chart',
+      component: './reports',
+    },
+    ```
+
+    To restrict the page to admin users, add `access: 'canAdmin'`. To nest it under an existing parent, add it to that parent's `routes` array instead.
+  </Step>
+  <Step title="Verify in the browser">
+    Run `npm run dev` and navigate to your new path. The sidebar entry should appear automatically, using the locale string you defined.
+  </Step>
+</Steps>
+
+## Catch-all and 404 routes
+
+The end of `config/routes.ts` includes a root redirect and a wildcard 404 handler:
+
+```typescript
+{
+  path: '/',
+  redirect: '/dashboard/analysis',
+},
+{
+  component: '404',
+  path: './*',
+},
+```
+
+The `component: '404'` shorthand renders UMI's built-in 404 page. You can replace it with a path to your own component if you want a custom not-found page.

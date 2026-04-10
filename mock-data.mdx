@@ -1,0 +1,216 @@
+---
+title: "Mock API data for local development"
+description: "Use UMI's built-in mock server to simulate API endpoints locally without a backend. Learn how to add handlers, generate dynamic data, and disable mocks."
+---
+
+Ant Design Pro uses UMI's built-in mock server to intercept HTTP requests during local development and return static or dynamically generated data. This lets you build and test the UI without a real backend. Mock files live in the `mock/` directory at the project root, and each file exports an object mapping HTTP method + path patterns to handler functions or plain values.
+
+<Warning>
+  Mock handlers only run during local development (`npm run dev`). They are never included in production builds and have no effect after `npm run build`.
+</Warning>
+
+## How the mock system works
+
+When you run `npm run dev`, UMI starts an Express-based dev server that processes every file in the `mock/` directory. Each file must export a default object where keys are `'METHOD /path'` strings and values are either a static object/array or a handler function with the signature `(req: Request, res: Response) => void`.
+
+UMI also scans page-level mock files matched by the `mock.include` pattern in `config/config.ts`:
+
+```typescript config/config.ts
+mock: {
+  include: ['src/pages/**/_mock.ts'],
+  exclude: ['mock/requestRecord.mock.js'],
+},
+```
+
+This means you can co-locate a `_mock.ts` file next to any page component and UMI will pick it up automatically.
+
+## Mock files overview
+
+The `mock/` directory contains the following files:
+
+| File | Endpoints | What it simulates |
+|---|---|---|
+| `user.ts` | `GET /api/currentUser`, `POST /api/login/account`, `POST /api/login/outLogin`, `GET /api/login/captcha` | Authentication, current user profile, logout, error status codes (401, 403, 404, 500) |
+| `listTableList.ts` | `GET /api/rule`, `POST /api/rule` | Paginated, sortable, filterable rule list with create/update/delete operations |
+| `fakeList.ts` | `GET /api/fake_list` | Project card list with randomized metadata (titles, avatars, progress, members) |
+| `notices.ts` | `GET /api/notices` | Notification center items across three types: `notification`, `message`, `event` |
+| `route.ts` | `/api/auth_routes` | Dynamic access control — maps route paths to required authority roles |
+
+## Handler examples
+
+### Static object response
+
+The simplest mock returns a plain value. UMI serializes it as JSON automatically:
+
+```typescript mock/user.ts
+export default {
+  'GET /api/users': [
+    { key: '1', name: 'John Brown', age: 32, address: 'New York No. 1 Lake Park' },
+    { key: '2', name: 'Jim Green',  age: 42, address: 'London No. 1 Lake Park'  },
+    { key: '3', name: 'Joe Black',  age: 32, address: 'Sidney No. 1 Lake Park'  },
+  ],
+};
+```
+
+### Function handler with request/response
+
+For dynamic behavior, use a handler function. The `req` object exposes `req.query`, `req.body`, and `req.params`:
+
+```typescript mock/user.ts
+'POST /api/login/account': async (req: Request, res: Response) => {
+  const { password, username, type } = req.body;
+  await waitTime(2000); // Simulate network latency
+
+  if (password === 'ant.design' && username === 'admin') {
+    res.send({ status: 'ok', type, currentAuthority: 'admin' });
+    return;
+  }
+
+  res.send({ status: 'error', type, currentAuthority: 'guest' });
+},
+```
+
+### Paginated list with sorting and filtering
+
+`mock/listTableList.ts` demonstrates how to handle query parameters for pagination, sorting, and filtering — matching the shape expected by ProTable:
+
+```typescript mock/listTableList.ts
+function getRule(req: Request, res: Response, u: string) {
+  const { current = 1, pageSize = 10 } = req.query;
+  const params = parse(realUrl, true).query;
+
+  let dataSource = [...tableListDataSource].slice(
+    ((current as number) - 1) * (pageSize as number),
+    (current as number) * (pageSize as number),
+  );
+
+  // Apply sort
+  if (params.sorter) {
+    const sorter = JSON.parse(params.sorter);
+    dataSource = dataSource.sort(/* ... */);
+  }
+
+  return res.json({
+    data: dataSource,
+    total: tableListDataSource.length,
+    success: true,
+    pageSize,
+    current: parseInt(`${params.current}`, 10) || 1,
+  });
+}
+
+export default {
+  'GET /api/rule': getRule,
+  'POST /api/rule': postRule,
+};
+```
+
+### Route access control
+
+`mock/route.ts` returns a map of route paths to required authority roles. This is consumed by the access control system to determine which routes a user can visit:
+
+```typescript mock/route.ts
+export default {
+  '/api/auth_routes': {
+    '/form/advanced-form': { authority: ['admin', 'user'] },
+  },
+};
+```
+
+## Disabling mocks
+
+To start the dev server without mocks and proxy requests to a real backend instead, use the `MOCK=none` environment variable:
+
+```bash
+MOCK=none npm run dev
+```
+
+The `package.json` provides a convenience script for this:
+
+```bash
+npm run start:no-mock
+```
+
+When `MOCK=none` is set, UMI skips all mock file processing and forwards requests to the configured proxy (defined in `config/proxy.ts`).
+
+## How to add a new mock endpoint
+
+<Steps>
+  <Step title="Create or open a mock file">
+    Create a new file in the `mock/` directory, or open an existing one. The file must export a default object. For a new resource, a dedicated file keeps things organized:
+
+    ```bash
+    touch mock/products.ts
+    ```
+  </Step>
+  <Step title="Define the handler">
+    Add a key for the HTTP method and path, and provide a handler function or static value:
+
+    ```typescript mock/products.ts
+    import type { Request, Response } from 'express';
+
+    const products = [
+      { id: 1, name: 'Widget A', price: 9.99, stock: 42 },
+      { id: 2, name: 'Widget B', price: 19.99, stock: 7 },
+    ];
+
+    export default {
+      'GET /api/products': (_req: Request, res: Response) => {
+        res.json({ data: products, success: true });
+      },
+
+      'POST /api/products': (req: Request, res: Response) => {
+        const newProduct = { id: Date.now(), ...req.body };
+        products.push(newProduct);
+        res.json({ data: newProduct, success: true });
+      },
+    };
+    ```
+  </Step>
+  <Step title="Restart the dev server">
+    UMI does not hot-reload new mock files automatically. Stop the dev server and restart it:
+
+    ```bash
+    npm run dev
+    ```
+  </Step>
+  <Step title="Verify the endpoint">
+    Open your browser or use a tool like `curl` to confirm the endpoint responds correctly:
+
+    ```bash
+    curl http://localhost:8000/api/products
+    ```
+  </Step>
+</Steps>
+
+## Simulating latency
+
+All mock handlers are async functions, so you can simulate realistic network delays using a simple `waitTime` helper — as used in `mock/user.ts`:
+
+```typescript
+const waitTime = (time: number = 100) =>
+  new Promise((resolve) => setTimeout(resolve, time));
+
+'POST /api/login/account': async (req: Request, res: Response) => {
+  await waitTime(2000); // 2 second delay
+  res.send({ status: 'ok' });
+},
+```
+
+## Simulating error responses
+
+Use `res.status()` to return HTTP error codes. `mock/user.ts` includes examples for common error scenarios:
+
+```typescript mock/user.ts
+'GET /api/500': (_req: Request, res: Response) => {
+  res.status(500).send({ status: 500, error: 'error', message: 'error' });
+},
+'GET /api/404': (_req: Request, res: Response) => {
+  res.status(404).send({ status: 404, error: 'Not Found' });
+},
+'GET /api/403': (_req: Request, res: Response) => {
+  res.status(403).send({ status: 403, error: 'Forbidden' });
+},
+```
+
+These endpoints are useful for testing how your error handling UI responds to different failure modes.

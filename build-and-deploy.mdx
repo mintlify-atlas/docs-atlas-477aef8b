@@ -1,0 +1,171 @@
+---
+title: "Build and deploy Ant Design Pro"
+description: "Compile your Ant Design Pro app for production, analyze bundle size, preview the build locally, and deploy to GitHub Pages or Cloudflare Workers."
+---
+
+Ant Design Pro uses `@umijs/max` as its build tool. Running a production build compiles your TypeScript source, applies code splitting, appends content hashes to filenames for cache busting, and writes all output to the `dist/` directory. From there you can serve that directory with any static file host.
+
+## Production build
+
+<Steps>
+  <Step title="Install dependencies">
+    Make sure your dependencies are installed before building.
+
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Run the build">
+    ```bash
+    npm run build
+    ```
+
+    This runs `max build` and writes the compiled output to `dist/`. The build enables hash-based filenames (configured via `hash: true` in `config/config.ts`) so browsers always load the latest assets after a deployment.
+  </Step>
+
+  <Step title="Verify the output">
+    After the build completes, the `dist/` directory contains:
+
+    - `index.html` — the app shell
+    - Hashed JS and CSS bundles (`umi.abc123.js`, etc.)
+    - Static assets copied from `public/`
+    - `scripts/loading.js` — inline loading screen to prevent white flash on first load
+  </Step>
+</Steps>
+
+<Note>
+  Ant Design Pro targets modern browsers only (Edge, Firefox, Chrome, Safari, and Opera — last two versions each). The build output is **not** compatible with Internet Explorer.
+</Note>
+
+## Analyze bundle size
+
+To understand what is contributing to your bundle size, run the analyzer build:
+
+```bash
+npm run analyze
+```
+
+This sets `ANALYZE=1` before calling `max build`, which opens an interactive treemap in your browser showing the size of every module. Use this to identify large dependencies and opportunities for code splitting or lazy loading.
+
+## Preview the production build locally
+
+Before deploying, you can serve the `dist/` folder locally to confirm the production build behaves as expected:
+
+```bash
+npm run preview
+```
+
+This runs `npm run build` followed by `max preview --port 8000`. Open `http://localhost:8000` to browse the built app. Because this serves the compiled output rather than the dev server, it accurately reflects what users will see in production — including the production `baseURL` pointing to `https://pro-api.ant-design-demo.workers.dev` (see `src/app.tsx`).
+
+## Environment-based builds with `UMI_ENV`
+
+The `UMI_ENV` variable controls which proxy and configuration block is active. In `config/config.ts` the proxy is selected as:
+
+```typescript
+const { UMI_ENV = 'dev' } = process.env;
+// ...
+proxy: proxy[UMI_ENV as keyof typeof proxy],
+```
+
+For development you typically run one of:
+
+```bash
+# Start dev server with mock data (default)
+npm start                   # UMI_ENV=dev, mock enabled
+
+# Start dev server against the test API
+npm run start:test          # UMI_ENV=test, MOCK=none
+
+# Start dev server against the pre-production API
+npm run start:pre           # UMI_ENV=pre, MOCK=none
+```
+
+The `MOCK=none` flag disables the built-in mock layer so that API calls reach the proxied backend. See [Environment variables](/environment-variables) for a full reference.
+
+## Disable mock data for a real API
+
+When you want to connect to a real API during development without changing the proxy target:
+
+```bash
+cross-env MOCK=none max dev
+```
+
+Or use the provided script shortcut:
+
+```bash
+npm run start:no-mock
+```
+
+## Serve the `dist/` folder
+
+Once built, `dist/` is a self-contained static site. You can serve it with any web server.
+
+<CodeGroup>
+
+```bash npx serve
+npx serve dist
+```
+
+```bash umi-serve
+npm run serve
+```
+
+```bash nginx
+server {
+  listen 80;
+  root /path/to/dist;
+  index index.html;
+
+  # Support client-side routing
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
+```
+
+</CodeGroup>
+
+<Note>
+  Because Ant Design Pro uses client-side routing, your server must return `index.html` for all routes — not a 404. The nginx example above shows the required `try_files` directive.
+</Note>
+
+## Deploy to GitHub Pages
+
+The `deploy` script builds the app and publishes `dist/` to the `gh-pages` branch using the `gh-pages` package:
+
+```bash
+npm run deploy
+```
+
+This is equivalent to:
+
+```bash
+npm run build && gh-pages -d dist
+```
+
+The GitHub Actions workflow at `.github/workflows/deploy.yml` automates this on every push to the `all-blocks` branch, also setting a custom `CNAME` of `preview.pro.ant.design`.
+
+## Deploy to Cloudflare Workers (API backend)
+
+The repository includes a ready-made Cloudflare Worker in the `cloudflare-worker/` directory. This Worker acts as the API backend for the production preview site — it is **not** the frontend deployment.
+
+The Worker is built with [Hono](https://hono.dev) and deployed with [Wrangler](https://developers.cloudflare.com/workers/wrangler/):
+
+```bash
+# Navigate to the worker directory
+cd cloudflare-worker
+
+# Install dependencies
+npm install
+
+# Run the worker locally
+npm run dev
+
+# Deploy to Cloudflare
+npm run deploy
+```
+
+The deployed worker name is `pro-api` (see `cloudflare-worker/wrangler.toml`). In production, `src/app.tsx` sets `baseURL` to `https://pro-api.ant-design-demo.workers.dev`, which is the deployed endpoint the frontend calls.
+
+The Worker exposes API routes under `/api/` covering users, dashboard, tables, lists, profiles, settings, and more. CORS is configured to allow requests from `preview.pro.ant.design` and other permitted origins.

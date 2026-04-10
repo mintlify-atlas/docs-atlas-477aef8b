@@ -1,0 +1,158 @@
+---
+title: "Profile and account management pages"
+description: "Ant Design Pro profile and account pages: basic and advanced profiles, an account centre with tabbed content, and settings with four management sections."
+---
+
+Ant Design Pro includes two profile templates for displaying record details and two account management pages for user self-service. Profile pages live under `/profile` and account pages under `/account`. Both groups use `@ant-design/pro-components` for layout, Ant Design `Descriptions` for structured data display, and `@tanstack/react-query` for data fetching.
+
+<CardGroup cols={2}>
+  <Card title="Basic Profile" icon="file-text" href="#basic-profile-profilebasic">
+    A refund-request detail page with order info, user info, goods table, and progress tracking.
+  </Card>
+  <Card title="Advanced Profile" icon="file-search" href="#advanced-profile-profileadvanced">
+    An approval-workflow profile with a process progress bar, tabbed operation logs, and responsive mobile layout.
+  </Card>
+  <Card title="Account Center" icon="user" href="#account-center-accountcenter">
+    A user hub showing avatar, bio, tags, team members, and tabbed content: articles, applications, and projects.
+  </Card>
+  <Card title="Account Settings" icon="settings" href="#account-settings-accountsettings">
+    A settings page with four sections: basic info, security, account binding, and notification preferences.
+  </Card>
+</CardGroup>
+
+---
+
+## Basic Profile — `/profile/basic`
+
+The Basic Profile is a read-only detail page for a single record — in the template, a refund request. It demonstrates how to compose `Descriptions`, `Divider`, and `ProTable` into a clean, printable record view.
+
+### Sections
+
+**Refund request info** (`Descriptions`)
+
+Top-level order metadata: pickup order number, status, sales order number, and sub-order number.
+
+**User info** (`Descriptions`)
+
+Customer data: name, phone, preferred courier, pickup address, and remarks.
+
+**Returned goods** (`ProTable`)
+
+A non-paginated `ProTable` (search and toolbar disabled) showing: product ID, name, barcode, unit price, quantity, and total amount. The last row is a synthesised totals row that spans multiple columns using custom `render` logic.
+
+**Return progress** (`ProTable`)
+
+A second non-paginated `ProTable` showing timestamps, progress percentage, status (badge: success / processing), operator ID, and elapsed time.
+
+### When to use
+
+Use Basic Profile for order detail pages, shipment tracking, invoice views, or any scenario where a record needs to be displayed across a few logical sections with an embedded data table.
+
+---
+
+## Advanced Profile — `/profile/advanced`
+
+The Advanced Profile is designed for complex entity views that require an approval workflow, responsive mobile layout, and multiple content perspectives via tabs. In the template the entity is a purchase/service order.
+
+### Header
+
+`PageContainer` is configured with:
+- A title showing the order number.
+- A responsive `extra` action area: on desktop, two grouped buttons plus a primary action; on mobile, a dropdown button (uses `RouteContext` to detect `isMobile`).
+- `content` — a two-column (one column on mobile) `Descriptions` block with: creator, ordered product, creation time, related document, effective date range, and remarks.
+- `extraContent` — a `moreInfo` panel showing order status and order amount as `Statistic` tiles.
+- Two page-level tabs: **Details** and **Rules**.
+
+### Main content
+
+**Process progress** (`Steps`)
+
+A horizontal `Steps` component (vertical on mobile) with custom `progressDot` rendering. The current active step shows a `Popover` with assignee name, response status, and elapsed time when hovered.
+
+**User info** (`Descriptions`)
+
+Name, membership card number, ID number, contact, address — plus nested info groups inside an inner `Card` to demonstrate multi-level description groupings.
+
+**Call history** 
+
+An `Empty` placeholder card representing a section for call records.
+
+**Operation logs**
+
+A tabbed `Card` with three tabs (`operationTabList`). Each tab renders a standard Ant Design `Table` with columns: operation type, operator, result (success/rejection badge), timestamp, and remarks.
+
+### When to use
+
+Use Advanced Profile for approval workflows, purchase orders, service tickets, or any entity where stakeholders need to see both the current state and a historical audit log, and where the page must degrade gracefully on mobile.
+
+---
+
+## Account Center — `/account/center`
+
+The Account Center is the user's public-facing profile hub — a two-column layout showing identity information on the left and owned content on the right.
+
+### Left panel
+
+Fetches current user data via `queryCurrent`. Displays:
+- **Avatar** — a full-width image.
+- **Name** and **signature** (bio line).
+- **Job title**, **team/group**, and **location** (province + city from geographic data) — each with an icon (`ContactsOutlined`, `ClusterOutlined`, `HomeOutlined`).
+- **Tags** — a `Tag` list with an inline "add tag" input. New tags can be added by clicking the dashed `+` tag, typing, and pressing Enter or blurring.
+- **Team** — a grid of `Avatar` + member name links drawn from the user's `notice` array.
+
+### Right panel
+
+A `Card` with three tabs (`operationTabList`):
+
+| Tab | Key | Content |
+|---|---|---|
+| Articles | `articles` | `<Articles />` component |
+| Applications | `applications` | `<Applications />` component |
+| Projects | `projects` | `<Projects />` component |
+
+Each sub-component fetches its own data independently. Tab switching updates local state; there is no URL change.
+
+### When to use
+
+Use Account Center as the profile page that other users can visit, or as the signed-in user's own profile summary with content they have created.
+
+---
+
+## Account Settings — `/account/settings`
+
+The Account Settings page provides a side-navigation settings panel. A `Menu` on the left switches between four views rendered in the right content area.
+
+### Navigation structure
+
+```
+Account Settings
+├── Basic settings    (base)
+├── Security settings (security)
+├── Account binding   (binding)
+└── Notification      (notification)
+```
+
+The `Menu` renders in `inline` mode on desktop and switches to `horizontal` mode on narrow viewports (< 641 px wide or window < 768 px), detected via a `resize` listener.
+
+### Basic settings — `BaseView`
+
+A `ProForm` (vertical layout) pre-populated with current user data from `queryCurrent`. Fields include:
+- Email address, nickname, personal profile, country, province, city (`ProFormDependency` cascades city options based on the selected province).
+- Phone number as a `ProFormFieldSet` with area code + number.
+- Avatar upload via Ant Design `Upload` with a preview.
+
+### Security settings — `SecurityView`
+
+A structured list of security items: account password, security phone, security email, MFA device, and login device management. Each row shows a strength label and a modify/bind action link.
+
+### Account binding — `BindingView`
+
+A list of third-party account binding options (Taobao, Alipay, DingTalk). Each row shows the account icon, description, and a bind/unbind action.
+
+### Notification settings — `NotificationView`
+
+A three-section list: account notifications, message notifications, and to-do notifications. Each item has a description and a toggle `Switch`.
+
+<Tip>
+The settings panel uses `useLayoutEffect` (not `useEffect`) to set the initial menu mode synchronously before paint, preventing a flash of incorrect layout on first render.
+</Tip>

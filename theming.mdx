@@ -1,0 +1,238 @@
+---
+title: "Customize theme colors and design tokens"
+description: "Adjust ProLayout tokens, Ant Design 5 design tokens, and antd-style CSS-in-JS to match your brand. Covers light mode, dark mode, and the dev-only SettingDrawer."
+---
+
+Ant Design Pro uses a layered theming system. At the top level, `config/defaultSettings.ts` controls ProLayout-level settings such as the primary color, navigation style, and layout mode. Beneath that, Ant Design 5's design token system lets you fine-tune every visual property across all components. For component-scoped styles, the project uses `antd-style` for CSS-in-JS with full token access.
+
+## Default settings
+
+All top-level theme configuration lives in `config/defaultSettings.ts`. This file exports a `Settings` object typed as `ProLayoutProps` and is merged into both the UMI layout plugin config (`config/config.ts`) and the initial state in `src/app.tsx`.
+
+```typescript config/defaultSettings.ts
+import type { ProLayoutProps } from '@ant-design/pro-components';
+
+const Settings: ProLayoutProps & {
+  pwa?: boolean;
+  logo?: string;
+} = {
+  navTheme: 'light',
+  // Daybreak Blue
+  colorPrimary: '#1890ff',
+  layout: 'mix',
+  contentWidth: 'Fluid',
+  fixedHeader: false,
+  fixSiderbar: true,
+  colorWeak: false,
+  title: 'Ant Design Pro',
+  pwa: true,
+  logo: 'https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg',
+  iconfontUrl: '',
+  token: {
+    // Modify ProLayout styles via token.
+    // See: https://procomponents.ant.design/components/layout#通过-token-修改样式
+  },
+};
+
+export default Settings;
+```
+
+### Key properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `navTheme` | `'light' \| 'dark' \| 'realDark'` | `'light'` | Navigation sidebar color theme |
+| `colorPrimary` | string | `'#1890ff'` | Brand primary color, propagated to all Ant Design components |
+| `layout` | `'mix' \| 'side' \| 'top'` | `'mix'` | Overall layout mode |
+| `contentWidth` | `'Fluid' \| 'Fixed'` | `'Fluid'` | Whether page content stretches to fill width |
+| `fixedHeader` | boolean | `false` | Pin the header to the top of the viewport |
+| `fixSiderbar` | boolean | `true` | Pin the sidebar while scrolling |
+| `colorWeak` | boolean | `false` | Enable color-blind friendly mode (inverts filter) |
+| `token` | object | `{}` | ProLayout design token overrides |
+
+## Changing the primary color
+
+Update `colorPrimary` in `defaultSettings.ts` to change the brand color across all Ant Design and ProComponents elements:
+
+```typescript config/defaultSettings.ts
+const Settings: ProLayoutProps = {
+  colorPrimary: '#00b96b', // Mint green
+  // ...
+};
+```
+
+This value is read by the `antd` plugin in `config/config.ts` via the `layout` config spread, and is passed to Ant Design's `ConfigProvider` automatically by UMI's layout plugin.
+
+## Ant Design 5 design tokens
+
+For deeper customization, configure Ant Design 5 tokens in `config/config.ts` under the `antd.configProvider.theme.token` key:
+
+```typescript config/config.ts
+antd: {
+  appConfig: {},
+  configProvider: {
+    variant: 'filled',
+    theme: {
+      token: {
+        fontFamily: 'AlibabaSans, sans-serif',
+        // Add any Ant Design global token overrides here
+        // colorBgContainer: '#ffffff',
+        // borderRadius: 6,
+      },
+    },
+  },
+},
+```
+
+Ant Design 5 exposes hundreds of design tokens. Common ones include:
+
+| Token | Description |
+|---|---|
+| `colorPrimary` | Primary brand color |
+| `colorBgContainer` | Background for containers and cards |
+| `colorBgLayout` | Background for the overall page layout |
+| `borderRadius` | Global border radius |
+| `fontFamily` | Global font family |
+| `fontSize` | Base font size |
+
+## ProLayout token overrides
+
+The `token` field in `defaultSettings.ts` accepts ProLayout-specific token overrides. These target layout-level elements like the sidebar, header, and menu, independently from Ant Design component tokens.
+
+```typescript config/defaultSettings.ts
+const Settings: ProLayoutProps = {
+  // ...
+  token: {
+    header: {
+      colorBgHeader: '#001529',
+      colorHeaderTitle: '#fff',
+    },
+    sider: {
+      colorMenuBackground: '#001529',
+      colorTextMenuSelected: '#1890ff',
+    },
+  },
+};
+```
+
+See the [ProComponents layout token documentation](https://procomponents.ant.design/components/layout) for the full list of available tokens.
+
+## Light and dark mode configuration
+
+<Tabs>
+  <Tab title="Light mode">
+    The default `navTheme: 'light'` renders a white sidebar and header. Pair it with Ant Design's default token values for a clean light appearance:
+
+    ```typescript config/defaultSettings.ts
+    const Settings: ProLayoutProps = {
+      navTheme: 'light',
+      colorPrimary: '#1890ff',
+      token: {
+        // Light mode token overrides
+      },
+    };
+    ```
+  </Tab>
+  <Tab title="Dark mode">
+    Set `navTheme` to `'realDark'` for a full dark mode layout. ProLayout applies a dark algorithm to component tokens automatically:
+
+    ```typescript config/defaultSettings.ts
+    const Settings: ProLayoutProps = {
+      navTheme: 'realDark',
+      colorPrimary: '#1890ff',
+      token: {
+        // Dark mode token overrides
+      },
+    };
+    ```
+
+    To let users toggle dark mode at runtime, the `SettingDrawer` in `src/app.tsx` provides an `enableDarkTheme` prop that adds a dark mode toggle button to the settings panel.
+  </Tab>
+</Tabs>
+
+## SettingDrawer (development only)
+
+In development and CI environments, `src/app.tsx` renders a `SettingDrawer` component that lets you visually adjust theme settings at runtime without editing code:
+
+```typescript src/app.tsx
+childrenRender: (children) => {
+  return (
+    <>
+      {children}
+      {isDevOrTest && (
+        <SettingDrawer
+          disableUrlParams
+          enableDarkTheme
+          settings={initialState?.settings}
+          onSettingChange={(settings) => {
+            setInitialState((preInitialState) => ({
+              ...preInitialState,
+              settings,
+            }));
+          }}
+        />
+      )}
+    </>
+  );
+},
+```
+
+The `disableUrlParams` prop prevents theme settings from being written to the URL query string. The `enableDarkTheme` prop adds a dark mode toggle to the drawer UI. Changes made in the drawer update the `initialState.settings` object, which is then spread into the layout config at the bottom of the `layout` export.
+
+<Note>
+  The `SettingDrawer` is only rendered when `process.env.NODE_ENV === 'development'` or when the `CI` environment variable is set. It is not included in production builds.
+</Note>
+
+## CSS-in-JS with `antd-style`
+
+For component-scoped styles that respond to the current theme token values, the project uses `antd-style`'s `createStyles` API. This is used throughout the codebase — for example in `AvatarDropdown.tsx` and `global.style.ts`.
+
+```typescript src/global.style.ts
+import { createStyles } from 'antd-style';
+
+const useStyles = createStyles(() => {
+  return {
+    colorWeak: {
+      filter: 'invert(80%)',
+    },
+    'ant-layout': {
+      minHeight: '100vh',
+    },
+    body: {
+      textRendering: 'optimizeLegibility',
+      WebkitFontSmoothing: 'antialiased',
+      MozOsxFontSmoothing: 'grayscale',
+    },
+  };
+});
+
+export default useStyles;
+```
+
+To access design tokens inside `createStyles`, destructure `token` from the callback argument:
+
+```typescript
+import { createStyles } from 'antd-style';
+
+const useStyles = createStyles(({ token }) => ({
+  container: {
+    backgroundColor: token.colorBgContainer,
+    borderRadius: token.borderRadius,
+    padding: token.paddingMD,
+    '&:hover': {
+      backgroundColor: token.colorBgTextHover,
+    },
+  },
+}));
+```
+
+`createStyles` automatically re-evaluates when the active theme changes, so your component styles respond correctly to both light and dark mode.
+
+## Global styles
+
+Static global styles are defined in two files:
+
+- **`src/global.less`** — Less-based global styles, including custom `@font-face` declarations for AlibabaSans and responsive table overrides. This file imports `tailwind.css`.
+- **`tailwind.css`** — Imports the Tailwind CSS v4 base styles and scans `src/**/*.tsx` for utility class usage.
+
+The AlibabaSans font is set as the default `fontFamily` in `config/config.ts` via the `antd.configProvider.theme.token.fontFamily` setting.

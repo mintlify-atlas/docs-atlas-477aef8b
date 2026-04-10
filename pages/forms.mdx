@@ -1,0 +1,159 @@
+---
+title: "Form templates: basic, step, and advanced"
+description: "Three ready-to-use ProForm templates in Ant Design Pro — basic single-page, multi-step wizard, and advanced multi-card forms with inline table editing."
+---
+
+Ant Design Pro includes three form templates that cover the most common data-entry scenarios. All forms are built with `ProForm` and its field components from `@ant-design/pro-components`, and use `@tanstack/react-query` for async submission. The `/form` route redirects to `/form/basic-form`.
+
+<Tabs>
+  <Tab title="Basic Form">
+
+## Basic Form — `/form/basic-form`
+
+The Basic Form is a single-card, vertically-laid-out form for collecting a small, focused set of inputs in one submission. The page description reads: _"表单页用于向用户收集或验证信息，基础表单常见于数据项较少的表单场景。"_ (Form pages collect or validate information; basic forms suit scenarios with fewer fields.)
+
+### Fields
+
+| Field | Component | Notes |
+|---|---|---|
+| Title | `ProFormText` | Required |
+| Date range | `ProFormDateRangePicker` | Required, start/end date |
+| Goal description | `ProFormTextArea` | Required |
+| Measurement criteria | `ProFormTextArea` | Required |
+| Client | `ProFormText` | Optional |
+| Reviewer invitees | `ProFormText` | Optional, up to 5 |
+| Weight | `ProFormDigit` | Optional, 0–100%, auto-formatted |
+| Visibility | `ProFormRadio.Group` | Public / Partially public / Private |
+| Visible to | `ProFormSelect` | Conditionally shown when "Partially public" is selected |
+
+The visibility select field uses `ProFormDependency` to conditionally render based on the `publicType` field value:
+
+```tsx
+<ProFormDependency name={['publicType']}>
+  {({ publicType }) => (
+    <ProFormSelect
+      name="publicUsers"
+      fieldProps={{
+        style: { display: publicType === '2' ? 'block' : 'none' },
+      }}
+      options={[...]}
+    />
+  )}
+</ProFormDependency>
+```
+
+### When to use
+
+Use Basic Form when users need to create or update a single record with fewer than ten fields, all visible simultaneously without requiring navigation between steps.
+
+  </Tab>
+  <Tab title="Step Form">
+
+## Step Form — `/form/step-form`
+
+The Step Form is a three-step wizard for complex, sequential tasks where the user should be guided through related sub-tasks one at a time. The page description reads: _"将一个冗长或用户不熟悉的表单任务分成多个步骤，指导用户完成。"_ (Divide a lengthy or unfamiliar task into steps to guide the user.)
+
+The template uses the `StepsForm` component from `@ant-design/pro-components`, which manages step state, validation per step, and the final result view.
+
+### Steps
+
+<Steps>
+  <Step title="Fill in transfer details">
+    Collects the payment source account (`ProFormSelect`), recipient account type and address (`ProForm.Group` with `ProFormSelect` + `ProFormText`), recipient name (`ProFormText`), and transfer amount (`ProFormDigit` with `¥` prefix and numeric validation).
+  </Step>
+  <Step title="Confirm transfer">
+    Displays a read-only `Descriptions` table summarising the data entered in step 1. Shows a `closable` `Alert` warning that the transfer cannot be reversed, and prompts for a payment password (`ProFormText.Password`).
+  </Step>
+  <Step title="Complete">
+    Renders an Ant Design `Result` component with `status="success"`. Shows a summary `Descriptions` block and two action buttons: "Transfer again" (resets to step 1 and clears the form) and "View bill".
+  </Step>
+</Steps>
+
+### Key implementation details
+
+```tsx
+<StepsForm
+  current={current}
+  onCurrentChange={setCurrent}
+  submitter={{
+    render: (props, dom) => {
+      // Hide the default submit buttons on the result step
+      if (props.step === 2) return null;
+      return dom;
+    },
+  }}
+>
+  <StepsForm.StepForm title="填写转账信息" onFinish={async (values) => { ... }}>
+    {/* step 1 fields */}
+  </StepsForm.StepForm>
+
+  <StepsForm.StepForm title="确认转账信息">
+    {/* step 2 confirmation */}
+  </StepsForm.StepForm>
+
+  <StepsForm.StepForm title="完成">
+    {/* step 3 result */}
+  </StepsForm.StepForm>
+</StepsForm>
+```
+
+### When to use
+
+Use Step Form when the task requires input that depends on earlier answers, when the total number of fields is large enough to overwhelm a single page, or when an irreversible action (such as a financial transfer) needs a confirmation step before submission.
+
+  </Tab>
+  <Tab title="Advanced Form">
+
+## Advanced Form — `/form/advanced-form`
+
+The Advanced Form handles bulk, structured data entry across multiple logical sections in one submission. The page description reads: _"高级表单常见于一次性输入和提交大批量数据的场景。"_ (Advanced forms suit bulk data entry in a single submission.)
+
+It wraps the entire page in a `ProForm` (not `PageContainer`), so the sticky `FooterToolbar` submit/reset bar is rendered by the form itself via the `submitter` prop.
+
+### Sections
+
+The form is divided into three `Card` sections rendered inside `PageContainer`:
+
+**Warehouse management (`仓库管理`)**
+
+| Field | Component |
+|---|---|
+| Warehouse name | `ProFormText` |
+| Warehouse domain (with `http://` prefix and `.com` suffix) | `ProFormText` with `addonBefore`/`addonAfter` |
+| Administrator | `ProFormSelect` |
+| Approver | `ProFormSelect` |
+| Effective date range | `ProFormDateRangePicker` |
+| Warehouse type (private/public) | `ProFormSelect` |
+
+**Task management (`任务管理`)**
+
+A mirror structure covering task name, description, assignee, responsible party, reminder time (`ProFormTimePicker`), and task type — laid out with the same responsive `Row`/`Col` grid.
+
+**Member management (`成员管理`)**
+
+An `EditableProTable` embedded as a `ProForm.Item`. Rows are editable in place; new rows can be added via a record creator. Columns: member name, work ID, department, and an edit action.
+
+### Error summary
+
+A `FooterToolbar` displays a `Popover` error list generated from `form.getFieldsError()` when the form fails validation. Clicking an error item scrolls to the relevant label.
+
+```tsx
+<ProForm
+  submitter={{
+    render: (_props, dom) => (
+      <FooterToolbar>
+        {getErrorInfo(error)}
+        {dom}
+      </FooterToolbar>
+    ),
+  }}
+  onFinishFailed={(errorInfo) => setError(errorInfo.errorFields)}
+>
+```
+
+### When to use
+
+Use Advanced Form when a single entity being created or edited spans multiple logical groupings, when some data is tabular (e.g., a list of members or line items), or when you need inline row-level editing within the same form submission.
+
+  </Tab>
+</Tabs>

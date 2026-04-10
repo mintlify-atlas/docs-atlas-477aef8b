@@ -1,0 +1,151 @@
+---
+title: "Environment variables and proxy configuration"
+description: "Configure runtime environment variables, switch between dev, test, and pre proxy targets, and understand how baseURL is set in Ant Design Pro."
+---
+
+Ant Design Pro exposes a small set of environment variables that control which API backend the app connects to, whether mock data is active, and what build-time flags are enabled. Understanding these variables lets you switch between local mock development, a shared test environment, and a pre-production API without touching source code.
+
+## Available environment variables
+
+| Variable   | Values              | Default | Description |
+|------------|---------------------|---------|-------------|
+| `UMI_ENV`  | `dev`, `test`, `pre` | `dev`  | Selects the proxy configuration block loaded from `config/proxy.ts`. |
+| `MOCK`     | `none`              | enabled | Set to `none` to bypass mock data and forward requests to the proxy target. |
+| `ANALYZE`  | `1`                 | off     | Set to `1` to open the bundle analyzer after a production build. |
+| `NODE_ENV` | `development`, `production` | set by framework | Set automatically by `max dev` and `max build`. Controls the `isDev` flag in `src/app.tsx`. |
+
+## `UMI_ENV` — selecting a proxy environment
+
+`config/config.ts` reads `UMI_ENV` at startup and uses it to choose a proxy block:
+
+```typescript
+const { UMI_ENV = 'dev' } = process.env;
+
+export default defineConfig({
+  // ...
+  proxy: proxy[UMI_ENV as keyof typeof proxy],
+});
+```
+
+The three environments and their corresponding npm scripts are:
+
+| `UMI_ENV` | npm script          | Proxy target |
+|-----------|---------------------|--------------|
+| `dev`     | `npm start`         | No proxy configured (uses mock data by default) |
+| `test`    | `npm run start:test` | `https://pro-api.ant-design-demo.workers.dev` |
+| `pre`     | `npm run start:pre` | Your pre-production URL (configure in `config/proxy.ts`) |
+
+## Proxy configuration (`config/proxy.ts`)
+
+The full proxy configuration file:
+
+```typescript
+export default {
+  // dev: {
+  //   '/api/': {
+  //     target: 'https://preview.pro.ant.design',
+  //     changeOrigin: true,
+  //   },
+  // },
+  test: {
+    // localhost:8000/api/** -> https://pro-api.ant-design-demo.workers.dev/api/**
+    '/api/': {
+      target: 'https://pro-api.ant-design-demo.workers.dev',
+      changeOrigin: true,
+    },
+  },
+  pre: {
+    '/api/': {
+      target: 'your pre url',
+      changeOrigin: true,
+    },
+  },
+};
+```
+
+The `dev` block is commented out because mock data is the default for local development. When you set `UMI_ENV=test`, all requests to `/api/**` are forwarded to the Cloudflare Worker at `pro-api.ant-design-demo.workers.dev`. Replace `your pre url` with your actual pre-production backend when working with the `pre` environment.
+
+<Note>
+  The proxy only works during local development (`max dev`). It has **no effect** on production builds. In production, the frontend calls the API directly using the `baseURL` defined in `src/app.tsx`.
+</Note>
+
+## `MOCK=none` — disabling mock data
+
+By default, `npm start` (which runs `UMI_ENV=dev max dev`) uses the built-in mock layer defined in `src/pages/**/_mock.ts` files. Setting `MOCK=none` turns off the mock layer so that API calls pass through the dev server proxy instead:
+
+```bash
+# Connect to a real API in development (uses UMI_ENV=dev proxy if configured)
+cross-env MOCK=none max dev
+
+# Or use the shortcut
+npm run start:no-mock
+```
+
+The `start:dev` script also sets `MOCK=none` while keeping `UMI_ENV=dev`:
+
+```bash
+npm run start:dev   # UMI_ENV=dev MOCK=none max dev
+```
+
+## `ANALYZE=1` — bundle size analysis
+
+Run the production build with the analyzer enabled:
+
+```bash
+npm run analyze     # cross-env ANALYZE=1 max build
+```
+
+After the build, an interactive treemap opens in your browser showing the size contribution of each module. Use this to find large dependencies to tree-shake or lazy-load.
+
+## `baseURL` in production (`src/app.tsx`)
+
+The request configuration in `src/app.tsx` sets `baseURL` based on `NODE_ENV`:
+
+```typescript
+const isDev = process.env.NODE_ENV === 'development';
+
+export const request: RequestConfig = {
+  baseURL: isDev ? '' : 'https://pro-api.ant-design-demo.workers.dev',
+  ...errorConfig,
+};
+```
+
+- **Development** (`NODE_ENV=development`): `baseURL` is an empty string, so requests go to `localhost:8000` (the dev server). The proxy configuration in `config/proxy.ts` then forwards `/api/**` requests to whichever backend `UMI_ENV` selects.
+- **Production** (`NODE_ENV=production`): `baseURL` is `https://pro-api.ant-design-demo.workers.dev`, so all API requests go directly to the Cloudflare Worker. Replace this URL with your own backend when deploying your own version of the app.
+
+## Build-time `define` fields (`config/config.ts`)
+
+`config/config.ts` passes several environment variables into the compiled bundle via the `define` option:
+
+```typescript
+define: {
+  'process.env.CI': process.env.CI,
+  'process.env.COMMIT_HASH': process.env.COMMIT_HASH || '',
+  'process.env.CF_PAGES_COMMIT_SHA': process.env.CF_PAGES_COMMIT_SHA || '',
+},
+```
+
+These values are inlined at build time:
+
+- `process.env.CI` — truthy when building in a CI environment. The app uses `isDevOrTest = isDev || process.env.CI` in `src/app.tsx` to show the `SettingDrawer` and OpenAPI link during CI preview builds.
+- `process.env.COMMIT_HASH` — the Git commit SHA, set by the CI pipeline (e.g., `echo "COMMIT_HASH=${{ github.sha }}" >> $GITHUB_ENV`).
+- `process.env.CF_PAGES_COMMIT_SHA` — the commit SHA provided by Cloudflare Pages, if deployed there.
+
+## Using `.env.local` for local overrides
+
+<Tip>
+  Create a `.env.local` file in the project root to set environment variables for local development without modifying any tracked files. Umi/Max picks up `.env.local` automatically, and it is already listed in `.gitignore`.
+</Tip>
+
+Example `.env.local`:
+
+```bash
+UMI_ENV=test
+MOCK=none
+```
+
+With this file in place, running `npm start` will behave like `npm run start:test` without needing to change any scripts.
+
+<Note>
+  Never commit secrets, API keys, or credentials to `.env` files that are tracked by git. Use your CI/CD platform's secret management for sensitive values and inject them as environment variables at build time.
+</Note>

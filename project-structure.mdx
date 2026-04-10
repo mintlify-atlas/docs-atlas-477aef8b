@@ -1,0 +1,282 @@
+---
+title: "Understanding the Ant Design Pro project structure"
+description: "A guide to the Ant Design Pro directory layout — where pages, components, services, routes, and configuration files live and how they fit together."
+---
+
+Ant Design Pro follows the conventions of [UMI Max](https://umijs.org/docs/max/introduce), which means the directory layout is largely dictated by the framework. Knowing where things live helps you move quickly when adding pages, adjusting routes, or modifying the layout.
+
+## Directory tree
+
+```
+ant-design-pro/
+├── config/                  # UMI build and runtime configuration
+│   ├── config.ts            # Main UMI Max config (routes, plugins, proxies)
+│   ├── defaultSettings.ts   # ProLayout default settings
+│   ├── proxy.ts             # Dev server proxy rules per environment
+│   ├── routes.ts            # Route definitions
+│   └── routes.simple.ts     # Minimal route set (used by npm run simple)
+├── mock/                    # Local mock API handlers
+│   ├── user.ts
+│   ├── route.ts
+│   ├── notices.ts
+│   ├── fakeList.ts
+│   └── listTableList.ts
+├── public/                  # Static assets served as-is
+├── scripts/
+│   └── simple.js            # Script to strip the project to minimal version
+├── src/
+│   ├── access.ts            # Access control function
+│   ├── app.tsx              # Runtime config (layout, request, initial state)
+│   ├── components/          # Shared UI components
+│   │   ├── Footer/
+│   │   ├── HeaderDropdown/
+│   │   └── RightContent/
+│   ├── locales/             # i18n locale files
+│   │   ├── en-US/
+│   │   ├── zh-CN/
+│   │   └── ...              # bn-BD, fa-IR, id-ID, ja-JP, pt-BR, zh-TW
+│   ├── pages/               # Page components (file-system routing)
+│   │   ├── Welcome.tsx
+│   │   ├── Admin.tsx
+│   │   ├── dashboard/
+│   │   ├── form/
+│   │   ├── list/
+│   │   ├── profile/
+│   │   ├── result/
+│   │   ├── exception/
+│   │   ├── account/
+│   │   ├── user/
+│   │   └── table-list/
+│   ├── services/            # API service functions
+│   │   └── ant-design-pro/
+│   │       ├── api.ts
+│   │       ├── login.ts
+│   │       └── typings.d.ts
+│   ├── requestErrorConfig.ts # Axios error interceptor config
+│   └── typings.d.ts         # Global TypeScript declarations
+├── tests/                   # Test setup files
+├── package.json
+└── tsconfig.json
+```
+
+## Key directories and files
+
+<AccordionGroup>
+  <Accordion title="src/pages/ — page components">
+    Each subdirectory under `src/pages/` maps to a route in the application. UMI Max uses the route definitions in `config/routes.ts` to connect paths to components, but components themselves live here.
+
+    ```
+    src/pages/
+    ├── Welcome.tsx          # /welcome
+    ├── Admin.tsx            # /admin/sub-page
+    ├── dashboard/
+    │   ├── analysis/        # /dashboard/analysis
+    │   ├── monitor/         # /dashboard/monitor
+    │   └── workplace/       # /dashboard/workplace
+    ├── form/
+    │   ├── basic-form/      # /form/basic-form
+    │   ├── step-form/       # /form/step-form
+    │   └── advanced-form/   # /form/advanced-form
+    ├── list/
+    │   ├── search/          # /list/search
+    │   ├── basic-list/      # /list/basic-list
+    │   └── card-list/       # /list/card-list
+    ├── profile/
+    │   ├── basic/           # /profile/basic
+    │   └── advanced/        # /profile/advanced
+    ├── account/
+    │   ├── center/          # /account/center
+    │   └── settings/        # /account/settings
+    └── user/
+        ├── login/           # /user/login
+        ├── register/        # /user/register
+        └── register-result/ # /user/register-result
+    ```
+
+    <Tip>
+      When you add a new page directory here, you also need to register the route in `config/routes.ts`. UMI Max does not auto-discover routes from the file system in this project — routes are explicit.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="src/components/ — shared components">
+    Reusable UI components that appear across multiple pages live here. These are not page-specific; they are imported from `@/components` throughout the app.
+
+    | Component | Description |
+    | --- | --- |
+    | `Footer/` | Site-wide footer rendered by ProLayout |
+    | `HeaderDropdown/` | Dropdown wrapper used in the header action area |
+    | `RightContent/` | Header right section containing `AvatarDropdown`, `SelectLang`, and `Question` |
+
+    The barrel export at `src/components/index.ts` re-exports all components so imports stay clean:
+
+    ```typescript
+    import { Footer, AvatarDropdown, AvatarName, SelectLang } from '@/components';
+    ```
+  </Accordion>
+
+  <Accordion title="src/services/ — API service functions">
+    API calls are organized under `src/services/ant-design-pro/`. These functions use `@umijs/max`'s `request` utility (built on Axios) to communicate with the backend.
+
+    | File | Description |
+    | --- | --- |
+    | `api.ts` | General endpoints — current user, notices, rule list |
+    | `login.ts` | Login and logout endpoints |
+    | `typings.d.ts` | TypeScript types for the API namespace (`API.CurrentUser`, etc.) |
+
+    In `src/app.tsx`, `getInitialState` calls `queryCurrentUser` from `api.ts` on every non-login page load to populate the global user state used by the layout and access control.
+
+    <Tip>
+      You can generate service files automatically from an OpenAPI spec by running `npm run openapi`. The output is based on the schema paths configured in `config/config.ts` under the `openAPI` key.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="src/locales/ — internationalization files">
+    Each locale is split into a root file and a directory of namespace files. The root file (e.g. `en-US.ts`) re-exports all namespace modules; the directory contains per-feature translation files.
+
+    ```
+    src/locales/
+    ├── en-US.ts          # Re-exports all en-US namespace modules
+    ├── en-US/
+    │   ├── globalHeader.ts
+    │   ├── menu.ts
+    │   ├── pages.ts
+    │   └── settingDrawer.ts
+    └── zh-CN/
+        └── ...
+    ```
+
+    Supported locales out of the box: `zh-CN`, `zh-TW`, `en-US`, `ja-JP`, `pt-BR`, `id-ID`, `fa-IR`, `bn-BD`.
+
+    The active locale defaults to `zh-CN` and falls back to `navigator.language` at runtime, as configured in `config/config.ts` under the `locale` key.
+  </Accordion>
+
+  <Accordion title="src/access.ts — access control">
+    This file exports the access function that UMI Max calls once initial state is loaded. It receives the current user and returns an object of boolean permissions.
+
+    ```typescript
+    export default function access(
+      initialState: { currentUser?: API.CurrentUser } | undefined,
+    ) {
+      const { currentUser } = initialState ?? {};
+      return {
+        canAdmin: currentUser && currentUser.access === 'admin',
+      };
+    }
+    ```
+
+    The `canAdmin` key is referenced directly in `config/routes.ts` to protect the `/admin` route. Any route with `access: 'canAdmin'` is hidden and redirects unauthenticated users.
+  </Accordion>
+
+  <Accordion title="src/app.tsx — runtime configuration">
+    This is the UMI Max runtime config file. It exports two named functions that the framework calls automatically:
+
+    - **`getInitialState`** — runs at startup, fetches the current user, and returns global state shared across the entire app
+    - **`layout`** — configures the ProLayout shell: avatar, footer, action buttons (language switcher, help link), and the `SettingDrawer` (visible in development only)
+
+    It also exports a **`request`** config that sets the base URL and attaches the global error handler from `requestErrorConfig.ts`.
+  </Accordion>
+
+  <Accordion title="config/routes.ts — route definitions">
+    All routes are defined explicitly in this file. Each route entry supports `path`, `component`, `name`, `icon`, `access`, `redirect`, and nested `routes`.
+
+    ```typescript
+    {
+      path: '/admin',
+      name: 'admin',
+      icon: 'crown',
+      access: 'canAdmin',   // only visible to admin users
+      routes: [
+        { path: '/admin', redirect: '/admin/sub-page' },
+        { path: '/admin/sub-page', name: 'sub-page', component: './Admin' },
+      ],
+    }
+    ```
+
+    Component paths are relative to `src/pages/`. The `name` field maps to a `menu.*` i18n key for sidebar labels.
+
+    <Tip>
+      Run `npm run simple` to replace `routes.ts` with `routes.simple.ts`, which contains only the `/welcome`, `/admin`, and `/user/login` routes.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="config/config.ts — UMI build configuration">
+    The main UMI Max configuration file. Key settings:
+
+    | Option | Value | Description |
+    | --- | --- | --- |
+    | `hash` | `true` | Adds content hash to build output filenames |
+    | `fastRefresh` | `true` | Preserves component state across hot reloads |
+    | `locale` | `{ default: 'zh-CN' }` | Default locale with browser detection |
+    | `mock` | `{ include: ['src/pages/**/_mock.ts'] }` | Includes per-page mock files |
+    | `access` | `{}` | Enables the UMI access plugin |
+    | `model` | `{}` | Enables the data flow (dva model) plugin |
+    | `initialState` | `{}` | Enables the global initial state plugin |
+    | `reactQuery` | `{}` | Enables the React Query plugin |
+    | `moment2dayjs` | `{ preset: 'antd', plugins: ['duration'] }` | Replaces Moment.js with Day.js |
+    | `exportStatic` | `{}` | Generates static HTML for every route |
+  </Accordion>
+
+  <Accordion title="config/defaultSettings.ts — ProLayout settings">
+    Defines the default appearance of the ProLayout shell. These values are merged into the layout config at runtime and can be overridden live using the `SettingDrawer` in development.
+
+    ```typescript
+    const Settings: ProLayoutProps = {
+      navTheme: 'light',
+      colorPrimary: '#1890ff',
+      layout: 'mix',        // sidebar + top bar hybrid layout
+      contentWidth: 'Fluid',
+      fixedHeader: false,
+      fixSiderbar: true,
+      title: 'Ant Design Pro',
+      pwa: true,
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="mock/ — local mock API files">
+    Mock files intercept HTTP requests during local development so you can work without a real backend. UMI Max's built-in mock server picks up all files in this directory automatically.
+
+    | File | Description |
+    | --- | --- |
+    | `user.ts` | Current user info and login/logout endpoints |
+    | `route.ts` | Dynamic menu and route data |
+    | `notices.ts` | Notification list data |
+    | `fakeList.ts` | Generic list data used across multiple pages |
+    | `listTableList.ts` | Table list data for the standard table page |
+
+    You can also add per-page mock files at `src/pages/**/_mock.ts` — these are included via the `mock.include` config in `config/config.ts`.
+
+    To start the dev server without mock data, use:
+
+    ```bash
+    npm run start:no-mock
+    ```
+  </Accordion>
+
+  <Accordion title="tests/ — test setup">
+    The `tests/` directory contains the Jest test setup file (`setupTests.jsx`). Per-component and per-page tests are co-located with their source files or placed in `__tests__` subdirectories inside `src/`.
+
+    Run all tests with:
+
+    ```bash
+    npm test
+    ```
+
+    Run with coverage:
+
+    ```bash
+    npm run test:coverage
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## TypeScript path aliases
+
+`tsconfig.json` defines two path aliases used throughout the codebase:
+
+| Alias | Resolves to |
+| --- | --- |
+| `@/*` | `./src/*` |
+| `@@/*` | `./src/.umi/*` (UMI-generated files) |
+
+For example, `import { Footer } from '@/components'` resolves to `src/components/index.ts`.

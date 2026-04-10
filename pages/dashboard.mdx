@@ -1,0 +1,122 @@
+---
+title: "Dashboard templates: analytics, monitor, workplace"
+description: "Explore the three built-in dashboard views in Ant Design Pro: Analysis, Monitor, and Workplace — each built for a distinct data visualization use case."
+---
+
+Ant Design Pro ships three dashboard templates, each targeting a different data presentation scenario. All three live under the `/dashboard` route group and use `@ant-design/pro-components` for layout, `@ant-design/plots` for charts, and `@tanstack/react-query` for data fetching. The root `/dashboard` path redirects to `/dashboard/analysis`.
+
+<CardGroup cols={2}>
+  <Card title="Analysis" icon="chart-bar" href="#analysis-dashboardanalysis">
+    Sales KPIs, time-series charts, top-search rankings, and offline channel breakdowns.
+  </Card>
+  <Card title="Monitor" icon="activity" href="#monitor-dashboardmonitor">
+    Real-time transaction stats, a geographic heatmap, gauge/liquid/word-cloud widgets.
+  </Card>
+  <Card title="Workplace" icon="layout-dashboard" href="#workplace-dashboardworkplace">
+    Personalised greeting, active projects, activity feed, quick-links, and a radar chart.
+  </Card>
+</CardGroup>
+
+---
+
+## Analysis — `/dashboard/analysis`
+
+The Analysis dashboard is the default landing view (`/` redirects here). It is a comprehensive business-intelligence page designed for reviewing sales performance and traffic trends over time.
+
+### What it shows
+
+The page is composed of five lazily-rendered sections wrapped in `<Suspense>`:
+
+| Section | Component | Description |
+|---|---|---|
+| KPI row | `IntroduceRow` | Four `ChartCard` tiles: total sales, page views, payment count, and campaign effectiveness. Each tile embeds a small `Area` or `Column` chart from `@ant-design/plots`. |
+| Sales trend | `SalesCard` | A `RangePicker`-controlled bar/area chart. Toggling between "all", "online", and "stores" filters the series. |
+| Top search | `TopSearch` | A ranked table of search keywords with visit-count sparklines. |
+| Sales proportion | `ProportionSales` | A pie chart showing sales split by channel (all / online / offline). |
+| Offline channels | `OfflineData` | A tabbed view — one tab per offline store — each rendering a time-series area chart. |
+
+### Charts used
+
+- `Area` and `Column` (mini sparklines in KPI tiles) — `@ant-design/plots`
+- Full-size bar/area chart in the sales card — `@ant-design/plots`
+- Pie chart for sales proportion — `@ant-design/plots`
+- Tabbed area charts for offline data — `@ant-design/plots`
+
+### When to use
+
+Use this template as the main home screen for operations or finance teams who need daily/weekly/monthly KPI monitoring with time-range filtering and channel-level drill-down.
+
+---
+
+## Monitor — `/dashboard/monitor`
+
+The Monitor dashboard presents live operational metrics. It is designed for real-time dashboards where individual widgets update independently and data staleness matters.
+
+### What it shows
+
+The page uses a two-row responsive grid (`Row`/`Col` from antd):
+
+**Row 1 — transaction overview and prediction panel:**
+
+- `Statistic` tiles: today's total transaction value, sales target completion rate, a countdown timer (`Statistic.Timer`), and per-second transaction value.
+- `MonitorMap` — a full-width geographic map built with `@antv/l7-react` (`MapboxScene`, `HeatmapLayer`, `PointLayer`). It renders city-level data points with quantile colour scaling and a hexagonal heatmap layer for grid capacity.
+- `ActiveChart` — a custom activity-trend chart in the sidebar.
+- `Gauge` — a dial-style gauge (from `@ant-design/plots`) showing coupon redemption efficiency with colour-coded threshold bands.
+
+**Row 2 — category and resource widgets:**
+
+- Three `Progress` components (type `"dashboard"`) showing per-category percentages side by side.
+- `WordCloud` (from `@ant-design/plots`) rendered from tag frequency data fetched via `queryTags`.
+- `Liquid` (from `@ant-design/plots`) displaying remaining resource capacity as a fill-level chart.
+
+### Libraries used
+
+| Library | Components |
+|---|---|
+| `@ant-design/plots` | `Gauge`, `Liquid`, `WordCloud` |
+| `@antv/l7-react` | `MapboxScene`, `HeatmapLayer`, `PointLayer` |
+| `antd` | `Statistic`, `Statistic.Timer`, `Progress`, `Card` |
+
+<Note>
+The map component depends on `@antv/l7-react` and requires a valid Mapbox token configured in your environment. The `blank` map style is used, so no Mapbox background tiles are loaded by default.
+</Note>
+
+### When to use
+
+Use this template for operations centre screens, logistics monitoring, or any scenario where you need real-time numeric KPIs alongside geographic distribution data.
+
+---
+
+## Workplace — `/dashboard/workplace`
+
+The Workplace dashboard is a personal work hub. It greets the signed-in user by name, aggregates their active projects, surfaces a team activity feed, and provides a quick-navigation panel.
+
+### What it shows
+
+The page is wrapped in `PageContainer` with a custom `content` header that renders:
+- The current user's **avatar**, **name**, and **title/group** (loaded from the user context).
+- Three `Statistic` tiles in the `extraContent` area: project count, team rank, and total project visits.
+
+The main body splits into two columns:
+
+**Left column (xl=16):**
+- **Active projects card** — a `Card.Grid` mosaic listing ongoing projects with logo, title, description, member link, and relative timestamps via `dayjs`.
+- **Activity feed card** — an Ant Design `List` that renders a parsed activity template string as rich inline links with user avatars and relative timestamps.
+
+**Right column (xl=8):**
+- **Quick-start panel** — an `EditableLinkGroup` with six configurable shortcut links.
+- **Radar chart card** — a `Radar` chart from `@ant-design/plots` showing multi-dimensional index scores.
+- **Team card** — an avatar grid of team members derived from the project notice data.
+
+### Libraries used
+
+| Library | Components |
+|---|---|
+| `@ant-design/plots` | `Radar` |
+| `@ant-design/pro-components` | `PageContainer` |
+| `antd` | `Avatar`, `Card`, `List`, `Statistic`, `Skeleton` |
+| `dayjs` | `relativeTime` plugin for "X minutes ago" labels |
+
+### When to use
+
+Use this template as a personalised home screen for internal tools, project management portals, or any app where the primary landing experience should be user-specific rather than aggregated metrics.

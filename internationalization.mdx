@@ -1,0 +1,168 @@
+---
+title: "Internationalization and locales"
+description: "Ant Design Pro ships with eight locales and a runtime language switcher. Learn how to add strings, switch locales, and remove i18n when not needed."
+---
+
+Ant Design Pro ships with full internationalization support powered by the UMI Max i18n plugin, which wraps [react-intl](https://formatjs.io/docs/react-intl). All UI strings — menu titles, page labels, form messages, and error text — are stored in locale files under `src/locales/`, and users can switch languages at runtime through the `SelectLang` component in the top navigation bar.
+
+## Locale files included
+
+The following locales ship out of the box. Each locale has a top-level entry file and a directory of module files:
+
+| Locale code | Language |
+|-------------|----------|
+| `en-US`     | English (United States) |
+| `zh-CN`     | Chinese (Simplified) |
+| `zh-TW`     | Chinese (Traditional) |
+| `ja-JP`     | Japanese |
+| `pt-BR`     | Portuguese (Brazil) |
+| `id-ID`     | Indonesian |
+| `fa-IR`     | Persian |
+| `bn-BD`     | Bengali |
+
+Each locale directory (e.g. `src/locales/en-US/`) is split into module files by concern:
+
+```
+src/locales/en-US/
+├── component.ts       # shared component strings
+├── globalHeader.ts    # top navigation strings
+├── menu.ts            # sidebar menu labels
+├── pages.ts           # page-level copy (login, 404, table, etc.)
+├── pwa.ts             # PWA install prompt strings
+├── settingDrawer.ts   # theme/setting panel strings
+└── settings.ts        # general settings labels
+```
+
+## Route titles from `menu.ts`
+
+When a route in `config/routes.ts` has a `name` property, UMI looks up the string `menu.<name>` from the active locale's `menu.ts` file and uses it as the sidebar label and page title.
+
+For example, the route:
+
+```typescript
+{ path: '/dashboard', name: 'dashboard', icon: 'dashboard', ... }
+```
+
+Resolves its title from `src/locales/en-US/menu.ts`:
+
+```typescript
+export default {
+  'menu.dashboard':          'Dashboard',
+  'menu.dashboard.analysis': 'Analysis',
+  'menu.dashboard.monitor':  'Monitor',
+  'menu.dashboard.workplace':'Workplace',
+  // ...
+};
+```
+
+Nested routes follow the same pattern with dotted keys: `menu.dashboard.analysis` corresponds to the `analysis` child of the `dashboard` parent.
+
+## Using `useIntl` and `<FormattedMessage>` in components
+
+UMI Max re-exports the react-intl hooks and components. Use `useIntl` for imperative access and `<FormattedMessage>` for declarative JSX:
+
+<CodeGroup>
+
+```typescript useIntl hook
+import { useIntl } from '@umijs/max';
+
+const MyComponent = () => {
+  const intl = useIntl();
+
+  const title = intl.formatMessage({
+    id: 'pages.login.success',
+    defaultMessage: 'Login successful!',
+  });
+
+  return <h1>{title}</h1>;
+};
+```
+
+```tsx FormattedMessage component
+import { FormattedMessage } from '@umijs/max';
+
+const MyComponent = () => (
+  <button>
+    <FormattedMessage
+      id="pages.login.submit"
+      defaultMessage="Login"
+    />
+  </button>
+);
+```
+
+</CodeGroup>
+
+The `defaultMessage` prop is the English fallback shown when no matching key is found in the active locale. It is good practice to always provide one.
+
+## Switching languages at runtime
+
+The `SelectLang` component is rendered in the top navigation bar by the `actionsRender` function in `src/app.tsx`:
+
+```typescript
+// src/app.tsx
+export const layout: RunTimeLayoutConfig = ({ initialState }) => {
+  return {
+    actionsRender: () => [
+      <Question key="doc" />,
+      <SelectLang key="SelectLang" />,
+    ],
+    // ...
+  };
+};
+```
+
+`SelectLang` is also used on the login page (`src/pages/user/login/index.tsx`) so users can choose their language before authenticating. It reads the available locales from the files in `src/locales/` automatically — no additional configuration is needed.
+
+## Adding a new locale string
+
+<Steps>
+  <Step title="Choose the right module file">
+    Decide which module file the string belongs to. Use `menu.ts` for sidebar labels, `pages.ts` for page-level copy, and `component.ts` for shared component strings.
+  </Step>
+  <Step title="Add the key to every locale file">
+    Open the matching file in each locale directory and add your key. For example, to add a label for a new reports page, edit `src/locales/en-US/menu.ts`:
+
+    ```typescript
+    export default {
+      // ... existing keys
+      'menu.reports': 'Reports',
+    };
+    ```
+
+    Then add the translated value in `src/locales/zh-CN/menu.ts`:
+
+    ```typescript
+    export default {
+      // ... existing keys
+      'menu.reports': '报表',
+    };
+    ```
+
+    Repeat for every locale you support to avoid missing-key warnings at runtime.
+  </Step>
+  <Step title="Reference the key in your component or route">
+    In `config/routes.ts`, set `name: 'reports'` and UMI resolves `menu.reports` automatically. In a component, use `useIntl` or `<FormattedMessage>` with the full key:
+
+    ```typescript
+    intl.formatMessage({ id: 'menu.reports', defaultMessage: 'Reports' })
+    ```
+  </Step>
+</Steps>
+
+## Adding a new locale
+
+To add a locale that does not ship in the project:
+
+1. Create a new directory `src/locales/<locale-code>/` (for example, `src/locales/ko-KR/`).
+2. Copy all module files from `src/locales/en-US/` into the new directory.
+3. Translate each string in the copied files.
+4. Create a top-level entry file `src/locales/ko-KR.ts` that re-exports all modules, following the same pattern as `src/locales/en-US.ts`.
+
+UMI picks up the new locale automatically.
+
+## Removing i18n strings
+
+<Note>
+The project includes an `i18n-remove` npm script for stripping out locale infrastructure when you want to ship a single-language build. Running `npm run i18n-remove` invokes `max i18n-remove --locale=zh-CN --write`, which removes all Chinese locale keys and their usages from the source. This is a destructive operation — run it only when you are certain you no longer need multi-language support.
+</Note>

@@ -1,0 +1,141 @@
+---
+title: "List and table templates"
+description: "Ant Design Pro list templates: ProTable query table, paginated task list, card grid, and tabbed search list covering articles, projects, and applications."
+---
+
+Ant Design Pro provides four list and table templates covering the most common data browsing patterns. They sit under the `/list` route group and are built with `@ant-design/pro-components`, Ant Design's `List`, and `@tanstack/react-query`. The `/list` root redirects to `/list/table-list`.
+
+<CardGroup cols={2}>
+  <Card title="Table List" icon="table" href="#table-list-listtable-list">
+    A full-featured ProTable with server-side search, column filters, batch delete, inline row actions, and a slide-out detail drawer.
+  </Card>
+  <Card title="Basic List" icon="list" href="#basic-list-listbasic-list">
+    A paginated task list with status filtering, search, progress indicators, and modal-based add/edit.
+  </Card>
+  <Card title="Card List" icon="layout-grid" href="#card-list-listcard-list">
+    A responsive card grid for browsing items with avatar, title, description, and action links.
+  </Card>
+  <Card title="Search List" icon="search" href="#search-list-listsearch">
+    A tabbed search list with articles, projects, and applications views, each with category and owner filters.
+  </Card>
+</CardGroup>
+
+---
+
+## Table List — `/list/table-list`
+
+The Table List is the most feature-complete template. It uses `ProTable` from `@ant-design/pro-components` and connects directly to the backend API via the `request` prop.
+
+### Features
+
+- **Server-side search and filtering** — `ProTable`'s built-in search bar generates query parameters automatically. Columns include name, description, number of service calls, status, last scheduled time, and a custom action column.
+- **Status `valueEnum`** — the status column maps numeric codes to coloured badges (default, processing, success, error) using `ProTable`'s `valueEnum` without manual `render` functions.
+- **Batch delete** — when rows are selected a `FooterToolbar` appears with a batch-delete button that calls `removeRule` and then refreshes the table via `actionRef.current?.reloadAndRest()`.
+- **Row-level actions** — each row has inline "Edit" and "Delete" links.
+- **Create modal** — a `CreateForm` drawer/modal lets users add a new rule. Uses `ProForm` internally.
+- **Update modal** — an `UpdateForm` `StepsForm` guides rule updates across multiple steps.
+- **Detail drawer** — clicking a row's name opens a `Drawer` containing a `ProDescriptions` panel with all fields.
+
+### Components used
+
+| Component | Package |
+|---|---|
+| `ProTable` | `@ant-design/pro-components` |
+| `FooterToolbar` | `@ant-design/pro-components` |
+| `ProDescriptions` | `@ant-design/pro-components` |
+| `PageContainer` | `@ant-design/pro-components` |
+| `Drawer`, `Button`, `Input` | `antd` |
+
+### When to use
+
+Use Table List when you need a query-first data table with server-driven pagination, column-level filtering, and inline row management — the standard CRUD admin table.
+
+---
+
+## Basic List — `/list/basic-list`
+
+The Basic List renders a vertically-stacked `List` of task items, each showing a logo avatar, title, owner, start time, and a `Progress` bar.
+
+### Features
+
+- **Summary header** — a `Card` at the top shows three `Info` tiles: pending tasks, average weekly processing time, and weekly completed count.
+- **Status filter** — a `Segmented` control filters items by "All", "In Progress", or "Waiting".
+- **Search** — an Ant Design `Input.Search` sits alongside the segment control.
+- **Pagination** — client-side pagination via `List`'s `pagination` prop (`pageSize: 5`, `showSizeChanger`, `showQuickJumper`). Data is fetched once with `count: 50`.
+- **Add/Edit modal** — an `OperationModal` dialog handles both creating and editing items. Submitting calls `addFakeList` or `updateFakeList`.
+- **Delete confirmation** — uses `Modal.confirm` before calling `removeFakeList`.
+- **Progress status** — each list item shows a `Progress` bar coloured according to the item's `status` field.
+
+### When to use
+
+Use Basic List for task management, to-do lists, or any scenario where items have a lifecycle status and need quick add/edit/delete operations from a single view.
+
+---
+
+## Card List — `/list/card-list`
+
+The Card List renders items as a responsive grid of cards — the standard pattern for product catalogues, app galleries, or content libraries.
+
+### Features
+
+- **Responsive grid** — the `List` uses a `grid` config (`xs:1`, `sm:2`, `md/lg:3`, `xl/xxl:4`) so columns adjust automatically to the viewport width.
+- **Card anatomy** — each card shows an avatar image, a linked title, and a `Typography.Paragraph` description truncated to 3 lines via `ellipsis`.
+- **Card actions** — two action links at the bottom of each card (customisable).
+- **Add new slot** — the first item in the data source is a placeholder that renders a dashed "Add product" button, keeping the creation entry point visually integrated with the list.
+- **Hoverable cards** — `Card` has `hoverable` set, adding a subtle lift shadow on mouse-over.
+
+### When to use
+
+Use Card List when items are visually distinguishable (have a logo or cover image) and the browsing experience benefits from a grid layout rather than a vertical list.
+
+---
+
+## Search List — `/list/search/*`
+
+The Search List is a tabbed search interface with a shared header search bar and three sub-views accessible at `/list/search/articles`, `/list/search/projects`, and `/list/search/applications`. The parent route (`/list/search`) redirects to `/list/search/articles`.
+
+### Shared layout
+
+The parent `Search` component renders a `PageContainer` with:
+- A centered `Input.Search` bar in the content area.
+- A `tabList` with three tabs: Articles, Projects, Applications.
+- Tab navigation is handled by `history.push` via `@umijs/max`.
+- Each tab's content is rendered by `<Outlet />`, keeping sub-route components fully independent.
+
+### Articles — `/list/search/articles`
+
+Displays a vertical `List` of article items with title, tags (`Tag` components), and action icons (star, like, message counts).
+
+Filter controls above the list:
+- `TagSelect` (expandable) filtering by category.
+- Multi-select `Select` for owner.
+- Additional `Select` filters for active user and rating.
+
+A "Load more" button appends additional items by re-running the query. All filter changes trigger a re-fetch via `refetch`.
+
+### Projects — `/list/search/projects`
+
+Displays projects as a responsive card grid (same `xs:1/sm:2/md:3/xl:4` layout as Card List).
+
+Each card has:
+- A cover image.
+- Title and a 2-line truncated description.
+- Relative timestamps via `dayjs` with the `relativeTime` plugin.
+- An `AvatarList` of collaborating members.
+
+Filter controls: category `TagSelect`, author `Select`, and rating `Select`.
+
+### Applications — `/list/search/applications`
+
+Displays applications as a responsive card grid.
+
+Each card shows:
+- An `Avatar` and title.
+- A `CardInfo` component with active user count and new user count (numbers above 10,000 are formatted with a `万` suffix).
+- Four action icons: download, edit, share, and a dropdown with extra options.
+
+Filter controls: category `TagSelect`, author `Select`, and rating `Select`.
+
+<Tip>
+All three search sub-views share the same `categoryOptions` mock data imported from `../../mock`. In a real application, replace this with an API call.
+</Tip>

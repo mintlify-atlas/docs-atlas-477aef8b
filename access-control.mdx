@@ -1,0 +1,156 @@
+---
+title: "Role-based access control"
+description: "Define permissions in access.ts, gate routes with the access property, and read rules in components with the useAccess hook from @umijs/max."
+---
+
+Ant Design Pro uses the UMI Max access plugin to implement role-based access control. Permissions are defined once in `src/access.ts` as a plain object of boolean rules, and those rules are then referenced in routes and UI components throughout the application.
+
+## How `src/access.ts` works
+
+The `access` function receives `initialState` — the same object returned by `getInitialState` in `src/app.tsx` — and returns an object where each key is an access rule name and each value is a boolean expression.
+
+Here is the full file as it ships in Ant Design Pro:
+
+```typescript
+// src/access.ts
+export default function access(
+  initialState: { currentUser?: API.CurrentUser } | undefined,
+) {
+  const { currentUser } = initialState ?? {};
+  return {
+    canAdmin: currentUser && currentUser.access === 'admin',
+  };
+}
+```
+
+The single rule `canAdmin` evaluates to `true` when the currently logged-in user has `access === 'admin'` on their user record. You can add as many rules as your application needs.
+
+## How `getInitialState` seeds permissions
+
+Access rules depend on the `currentUser` value being present in `initialState`. The `getInitialState` function in `src/app.tsx` fetches the current user from the API on every page load and makes it available throughout the app:
+
+```typescript
+// src/app.tsx
+export async function getInitialState() {
+  const fetchUserInfo = async () => {
+    try {
+      const msg = await queryCurrentUser({ skipErrorHandler: true });
+      return msg.data;
+    } catch (_error) {
+      history.push(loginPath);
+    }
+    return undefined;
+  };
+
+  // Skip the API call on auth pages to avoid redirect loops
+  const { location } = history;
+  if (
+    ![loginPath, '/user/register', '/user/register-result'].includes(
+      location.pathname,
+    )
+  ) {
+    const currentUser = await fetchUserInfo();
+    return { fetchUserInfo, currentUser, settings: defaultSettings };
+  }
+  return { fetchUserInfo, settings: defaultSettings };
+}
+```
+
+When `currentUser` is `undefined` (fetch failed or user is not logged in), `canAdmin` evaluates to `false` and any route that requires it becomes inaccessible.
+
+<Warning>
+If the user is not logged in, `fetchUserInfo` catches the API error and calls `history.push(loginPath)`, redirecting to `/user/login`. Additionally, the `onPageChange` handler in the `layout` export checks on every navigation event and redirects unauthenticated users to the login page. Do not remove these guards.
+</Warning>
+
+## Gating routes with the `access` property
+
+To restrict a route to users who satisfy an access rule, set the `access` property in `config/routes.ts` to the rule name:
+
+```typescript
+// config/routes.ts
+{
+  path: '/admin',
+  name: 'admin',
+  icon: 'crown',
+  access: 'canAdmin',      // only users where canAdmin === true can visit
+  routes: [
+    {
+      path: '/admin',
+      redirect: '/admin/sub-page',
+    },
+    {
+      path: '/admin/sub-page',
+      name: 'sub-page',
+      component: './Admin',
+    },
+  ],
+},
+```
+
+UMI evaluates `canAdmin` at runtime. Users who fail the check are shown a 403 page rather than the route content. The sidebar menu entry is also hidden automatically for users without access.
+
+## Using access rules in components
+
+To show or hide UI elements based on access rules, use the `useAccess` hook from `@umijs/max`:
+
+```typescript
+import { useAccess } from '@umijs/max';
+
+const MyComponent = () => {
+  const access = useAccess();
+
+  return (
+    <div>
+      <p>Everyone sees this.</p>
+      {access.canAdmin && (
+        <button>Delete record</button>
+      )}
+    </div>
+  );
+};
+```
+
+The `access` object returned by `useAccess` mirrors exactly what your `src/access.ts` function returns, so every rule you define is immediately available.
+
+## Adding new access rules
+
+<Steps>
+  <Step title="Add the rule to access.ts">
+    Open `src/access.ts` and add a new key to the returned object. The value is any boolean expression that can be derived from `currentUser`:
+
+    ```typescript
+    export default function access(
+      initialState: { currentUser?: API.CurrentUser } | undefined,
+    ) {
+      const { currentUser } = initialState ?? {};
+      return {
+        canAdmin: currentUser && currentUser.access === 'admin',
+        canEdit:  currentUser && currentUser.access !== undefined,
+      };
+    }
+    ```
+  </Step>
+  <Step title="Apply the rule to a route (optional)">
+    In `config/routes.ts`, set `access` on any route you want to gate:
+
+    ```typescript
+    {
+      path: '/settings',
+      name: 'settings',
+      access: 'canEdit',
+      component: './settings',
+    },
+    ```
+  </Step>
+  <Step title="Use the rule in components (optional)">
+    Reference the new key via `useAccess` anywhere in your component tree:
+
+    ```typescript
+    const { canEdit } = useAccess();
+    ```
+  </Step>
+</Steps>
+
+## TypeScript types for `currentUser`
+
+The `API.CurrentUser` type is defined in your generated typings (typically `src/services/ant-design-pro/typings.d.ts`). If you add custom fields to the user response — such as a role list or feature flags — extend this interface so TypeScript can verify your access rules at compile time.

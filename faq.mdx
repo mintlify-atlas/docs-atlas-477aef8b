@@ -1,0 +1,226 @@
+---
+title: "Frequently asked questions"
+description: "Answers to common questions about setting up, developing with, and deploying Ant Design Pro, including Node.js requirements and configuration tips."
+---
+
+This page covers the most common questions about Ant Design Pro. If your question is not answered here, check the [GitHub Issues](https://github.com/ant-design/ant-design-pro/issues) for the project.
+
+<AccordionGroup>
+  <Accordion title="What Node.js version does Ant Design Pro require?">
+    Ant Design Pro requires **Node.js 20.0.0 or higher**. This is enforced via the `engines` field in `package.json`:
+
+    ```json
+    "engines": {
+      "node": ">=20.0.0"
+    }
+    ```
+
+    We recommend using the latest LTS release. If you manage multiple Node.js versions, use [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) to switch easily.
+  </Accordion>
+
+  <Accordion title="How do I switch from the full version to the simple version?">
+    The project includes all page blocks by default. To strip it down to a minimal starting point, run:
+
+    ```bash
+    npm run simple
+    ```
+
+    This runs `node scripts/simple.js`, which:
+
+    - Removes extra page directories (dashboard, form, list/\*, profile, result, exception, account, etc.)
+    - Deletes the corresponding mock files
+    - Replaces the routes configuration with a simplified version
+    - Removes unneeded dependencies from `package.json`
+
+    <Warning>
+      This operation is **irreversible** and permanently deletes files. Make sure you have committed or backed up your work before running it.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="How do I disable mock data and connect to a real API?">
+    Set the `MOCK` environment variable to `none` when starting the dev server:
+
+    ```bash
+    # Ad-hoc
+    cross-env MOCK=none max dev
+
+    # Using the provided script
+    npm run start:no-mock
+    ```
+
+    You also need to configure a proxy target so the dev server knows where to forward `/api/**` requests. Edit `config/proxy.ts` and add your backend URL to the `dev` block:
+
+    ```typescript
+    dev: {
+      '/api/': {
+        target: 'http://localhost:3001', // your local API
+        changeOrigin: true,
+      },
+    },
+    ```
+
+    Then start the dev server with `UMI_ENV=dev MOCK=none`:
+
+    ```bash
+    npm run start:dev
+    ```
+  </Accordion>
+
+  <Accordion title="How do I change the primary color or customize the theme?">
+    The theme is configured in `config/config.ts` under the `antd.configProvider` option. To change the primary color, update the `theme.token` object:
+
+    ```typescript
+    antd: {
+      configProvider: {
+        theme: {
+          token: {
+            colorPrimary: '#1677ff', // your color
+            fontFamily: 'AlibabaSans, sans-serif',
+          },
+        },
+      },
+    },
+    ```
+
+    For live theme previewing during development, the `SettingDrawer` component (rendered in `src/app.tsx` when `NODE_ENV=development` or `CI=true`) lets you adjust colors, layout density, and other design tokens at runtime. Your changes are reflected immediately in the UI.
+
+    Ant Design's full token list is documented at [ant.design/docs/react/customize-theme](https://ant.design/docs/react/customize-theme).
+  </Accordion>
+
+  <Accordion title="How do I add a new page or route?">
+    Routes are defined in `config/routes.ts`. Add a new entry to the array:
+
+    ```typescript
+    {
+      path: '/my-page',
+      component: './MyPage',
+      name: 'My Page',
+    },
+    ```
+
+    Then create the corresponding component at `src/pages/MyPage/index.tsx`. Umi only compiles files that are referenced in the routes configuration, so any file not listed there will not be included in the build.
+
+    If the route requires authentication, Ant Design Pro handles this globally via the `onPageChange` guard in `src/app.tsx`, which redirects unauthenticated users to `/user/login` on every navigation event. No per-route wrapper is needed unless you have custom requirements.
+  </Accordion>
+
+  <Accordion title="How do I add a new permission or role?">
+    Ant Design Pro uses `@umijs/max`'s access plugin, which is seeded by `getInitialState` in `src/app.tsx`. The current user's data (including roles) is fetched on app startup and stored in initial state.
+
+    To add a new permission:
+
+    1. Add the role or permission field to the `API.CurrentUser` type.
+    2. Update `src/access.ts` to expose a boolean derived from `initialState.currentUser`:
+
+    ```typescript
+    export default function access(initialState: { currentUser?: API.CurrentUser }) {
+      const { currentUser } = initialState ?? {};
+      return {
+        canAdmin: currentUser?.access === 'admin',
+        canEditor: currentUser?.access === 'editor', // new permission
+      };
+    }
+    ```
+
+    3. Use the permission in a route via `access`:
+
+    ```typescript
+    {
+      path: '/editor-only',
+      component: './EditorPage',
+      access: 'canEditor',
+    },
+    ```
+
+    4. Or conditionally render UI using the `useAccess` hook:
+
+    ```typescript
+    import { useAccess } from '@umijs/max';
+    const { canEditor } = useAccess();
+    ```
+  </Accordion>
+
+  <Accordion title="How do I point the app at a different API backend?">
+    There are two places to update:
+
+    **1. Development proxy (`config/proxy.ts`)** — controls where `/api/**` requests are forwarded during `max dev`:
+
+    ```typescript
+    dev: {
+      '/api/': {
+        target: 'https://your-api.example.com',
+        changeOrigin: true,
+      },
+    },
+    ```
+
+    Start the dev server with `UMI_ENV=dev MOCK=none` (or `npm run start:dev`) so the proxy is active and mock data is disabled.
+
+    **2. Production `baseURL` (`src/app.tsx`)** — controls the URL used by the request client in production builds:
+
+    ```typescript
+    export const request: RequestConfig = {
+      baseURL: isDev ? '' : 'https://your-api.example.com',
+      ...errorConfig,
+    };
+    ```
+
+    Replace `https://pro-api.ant-design-demo.workers.dev` with your own API base URL. This value is embedded into the bundle at build time, so you need to rebuild after changing it.
+  </Accordion>
+
+  <Accordion title="How do I remove the Chinese locale or strip all i18n strings?">
+    Ant Design Pro ships with `zh-CN` as the default locale. If you want to ship an English-only build and remove all i18n overhead, run:
+
+    ```bash
+    npm run i18n-remove
+    ```
+
+    This runs `max i18n-remove --locale=zh-CN --write`, which scans the source files and replaces `intl.formatMessage(...)` calls with their English string equivalents, then removes the `zh-CN` locale files.
+
+    <Warning>
+      Like `npm run simple`, this operation modifies source files in place. Commit your work before running it.
+    </Warning>
+
+    After running the command, you can also remove the `locale` configuration block from `config/config.ts` if you no longer need runtime language switching.
+  </Accordion>
+
+  <Accordion title="How do I fix build errors or TypeScript errors?">
+    Run the TypeScript compiler in check-only mode to see all type errors without producing output:
+
+    ```bash
+    npm run tsc
+    ```
+
+    For linting errors (code style, import ordering, etc.), run the Biome linter:
+
+    ```bash
+    npm run lint
+    ```
+
+    `npm run lint` runs both `npx @biomejs/biome lint` and `tsc --noEmit`. To auto-fix Biome issues, run:
+
+    ```bash
+    npm run biome
+    ```
+
+    This runs `biome check --write` to apply safe automatic fixes. If you see errors related to missing type declarations, make sure your dependencies are installed (`npm install`) and that `postinstall` (which runs `max setup`) has completed successfully.
+  </Accordion>
+
+  <Accordion title="How do I update Ant Design or @ant-design/pro-components to a newer version?">
+    Update the packages in `package.json` to the versions you want, then reinstall:
+
+    ```bash
+    npm install antd@latest @ant-design/pro-components@latest
+    ```
+
+    After updating, check the changelogs for breaking changes:
+
+    - [antd changelog](https://ant.design/changelog)
+    - [@ant-design/pro-components releases](https://github.com/ant-design/pro-components/releases)
+
+    Run `npm run tsc` and `npm run lint` after upgrading to catch any API changes that affect your code. Major version upgrades (e.g., antd v5 → v6) may require manual migration steps described in the official migration guides.
+
+    <Tip>
+      The `postinstall` script runs `max setup` automatically after every `npm install`. This regenerates any framework-managed files and keeps your environment in sync with the installed `@umijs/max` version.
+    </Tip>
+  </Accordion>
+</AccordionGroup>

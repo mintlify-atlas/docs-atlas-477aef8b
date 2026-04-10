@@ -1,0 +1,83 @@
+{
+  "projectType": "frontend",
+  "projectName": "Ant Design Pro",
+  "projectDescription": "An out-of-box React boilerplate for building enterprise-grade admin dashboards and management applications using Ant Design.",
+  "theme": "willow",
+  "primaryColor": "#05141d",
+  "lightColor": "#7c848c",
+  "darkColor": "#d9dbdd",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "getting-started",
+              "project-structure"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "routing",
+              "access-control",
+              "data-fetching",
+              "internationalization"
+            ]
+          },
+          {
+            "group": "Built-in Pages",
+            "pages": [
+              "pages/dashboard",
+              "pages/forms",
+              "pages/lists",
+              "pages/profiles-and-account"
+            ]
+          },
+          {
+            "group": "Customization",
+            "pages": [
+              "theming",
+              "layout",
+              "mock-data"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "build-and-deploy",
+              "environment-variables",
+              "faq"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Pre-built enterprise dashboard templates (Analytics, Monitor, Workplace)",
+    "Role-based access control with UMI Max access plugin",
+    "Built-in internationalization (i18n) support",
+    "Ant Design component library integration",
+    "Mock data development environment",
+    "TypeScript throughout with strict typing",
+    "Customizable theming with ProLayout and token system",
+    "OpenAPI integration for automatic service generation",
+    "PWA support",
+    "Responsive layout with dark/light mode"
+  ],
+  "publicApiSurface": [
+    "getInitialState() — runtime config for fetching initial user state",
+    "layout: RunTimeLayoutConfig — ProLayout runtime configuration",
+    "request: RequestConfig — Axios-based HTTP client configuration",
+    "access(initialState) — role/permission definitions (access.ts)",
+    "routes.ts — UMI route configuration with access guards",
+    "defaultSettings.ts — ProLayout appearance and color settings",
+    "errorConfig — request interceptors and error handling",
+    "src/services/ant-design-pro/api.ts — API service functions",
+    "src/components — shared UI components (Footer, RightContent, HeaderDropdown)"
+  ]
+}

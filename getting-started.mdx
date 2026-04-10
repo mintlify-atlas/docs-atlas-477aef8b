@@ -1,0 +1,118 @@
+---
+title: "Get started with Ant Design Pro"
+description: "Clone the Ant Design Pro repository, install dependencies, and run a local development server to start building your enterprise React application."
+---
+
+Ant Design Pro is a boilerplate — you clone the repository and build your application on top of it. This guide walks you through cloning the repo, installing dependencies, and starting the development server. The whole process takes less than five minutes.
+
+<Note>
+  Ant Design Pro requires **Node.js >= 20.0.0**. Check your version with `node --version` before proceeding.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the repository with `--depth=1` to skip the full commit history and speed up the download. Replace `myapp` with your project name.
+
+    ```bash
+    git clone --depth=1 https://github.com/ant-design/ant-design-pro.git myapp
+    cd myapp
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all project dependencies. Use whichever package manager you prefer.
+
+    <CodeGroup>
+
+    ```bash npm
+    npm install
+    ```
+
+    ```bash yarn
+    yarn install
+    ```
+
+    ```bash pnpm
+    pnpm install
+    ```
+
+    </CodeGroup>
+
+    After installation, the `postinstall` script runs `max setup` automatically to prepare the UMI Max configuration.
+  </Step>
+
+  <Step title="Start the development server">
+    Start the local development server. By default, this runs with the `dev` UMI environment and enables local mock data.
+
+    ```bash
+    npm start
+    ```
+
+    This runs `cross-env UMI_ENV=dev max dev` under the hood. Hot module replacement is enabled so changes reload instantly without losing component state.
+  </Step>
+
+  <Step title="Open the app in your browser">
+    Once the server is ready, open [http://localhost:8000](http://localhost:8000) in your browser. You will be redirected to the login page. Use the mock credentials to sign in.
+
+    <Tip>
+      The default mock user has admin access. You can inspect and modify mock user data in `mock/user.ts`.
+    </Tip>
+  </Step>
+</Steps>
+
+## Simplify to the minimal version
+
+The full repository includes all template pages: dashboards, forms, lists, profiles, results, and exception pages. If you only need a minimal starting point, run the simplify script to strip everything down to the core welcome and admin pages.
+
+```bash
+npm run simple
+```
+
+This script permanently removes the following and cannot be undone:
+
+- **Page directories**: `dashboard`, `form`, `list/basic-list`, `list/card-list`, `list/search`, `profile`, `result`, `exception`, `account`, `user/register`, `user/register-result`
+- **Mock files**: `mock/analysis.mock.ts`, `mock/workplace.mock.ts`
+- **Dependencies**: `@ant-design/plots`, `@antv/l7`, `@antv/l7-react`, `numeral`
+- **Routes**: replaced with the minimal `config/routes.simple.ts`
+
+After running `npm run simple`, reinstall dependencies to apply the removed packages:
+
+```bash
+npm install
+```
+
+<Warning>
+  `npm run simple` is irreversible. It deletes files and removes itself. Run it on a fresh clone if you want to keep the full version available.
+</Warning>
+
+## Build for production
+
+When you are ready to deploy, run the build command to generate optimized static assets in the `dist/` directory.
+
+```bash
+npm run build
+```
+
+The build uses `max build` and produces hashed filenames for long-term caching. See the [build and deploy](/build-and-deploy) page for deployment instructions.
+
+## Available scripts
+
+These are the scripts defined in `package.json`:
+
+| Script | Description |
+| --- | --- |
+| `npm start` | Start the dev server with mock data (`UMI_ENV=dev`) |
+| `npm run dev` | Alias for `start:dev` — dev server without mock data |
+| `npm run start:no-mock` | Dev server with mock data disabled (`MOCK=none`) |
+| `npm run build` | Build for production |
+| `npm run preview` | Build and serve the production output locally on port 8000 |
+| `npm run simple` | Strip the project down to the minimal version (irreversible) |
+| `npm run lint` | Run Biome linting and TypeScript type-checking |
+| `npm run tsc` | Type-check without emitting output |
+| `npm run test` | Run Jest tests |
+| `npm run test:coverage` | Run Jest with coverage report |
+| `npm run analyze` | Build with bundle analyzer (`ANALYZE=1`) |
+| `npm run openapi` | Generate TypeScript service files from OpenAPI specs |
+| `npm run i18n-remove` | Remove all `zh-CN` i18n keys and write English values inline |

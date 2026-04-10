@@ -1,0 +1,258 @@
+---
+title: "Configure the ProLayout sidebar and header"
+description: "Set layout modes, customize the sidebar, header actions, avatar menu, footer, and background images using RunTimeLayoutConfig in app.tsx."
+---
+
+Ant Design Pro's shell — the sidebar, header, footer, and background decoration — is powered by ProLayout from `@ant-design/pro-components`. The layout is configured in two places: `config/defaultSettings.ts` for static defaults, and the `layout` export in `src/app.tsx` for runtime behavior such as the user avatar, navigation rendering, and page-level guards.
+
+## Layout modes
+
+The `layout` property in `config/defaultSettings.ts` controls the overall shell structure. There are three modes:
+
+<CardGroup cols={3}>
+  <Card title="mix" icon="layout-panel-left">
+    The default. Top navigation bar contains the logo and header actions; sidebar contains the menu. This combines the benefits of both `side` and `top`.
+  </Card>
+  <Card title="side" icon="panel-left">
+    The sidebar contains both the logo and the full menu. The header spans the full width and holds only actions.
+  </Card>
+  <Card title="top" icon="layout-panel-top">
+    No sidebar. The menu is rendered horizontally in the top navigation bar alongside the logo and actions.
+  </Card>
+</CardGroup>
+
+Change the mode in `config/defaultSettings.ts`:
+
+```typescript config/defaultSettings.ts
+const Settings: ProLayoutProps = {
+  layout: 'mix', // 'mix' | 'side' | 'top'
+  // ...
+};
+```
+
+## Runtime layout configuration
+
+`src/app.tsx` exports a `layout` function typed as `RunTimeLayoutConfig`. This function receives `initialState` and `setInitialState` from UMI's global state and returns a ProLayout props object. The return value is merged with `initialState?.settings` (which reflects any changes made via `SettingDrawer`).
+
+```typescript src/app.tsx
+export const layout: RunTimeLayoutConfig = ({
+  initialState,
+  setInitialState,
+}) => {
+  return {
+    actionsRender: () => [
+      <Question key="doc" />,
+      <SelectLang key="SelectLang" />,
+    ],
+    menuItemRender: (item, dom) => {
+      if (item.path) {
+        return (
+          <Link to={item.path} prefetch>
+            {dom}
+          </Link>
+        );
+      }
+      return dom;
+    },
+    avatarProps: {
+      src: initialState?.currentUser?.avatar,
+      title: <AvatarName />,
+      render: (_, avatarChildren) => (
+        <AvatarDropdown>{avatarChildren}</AvatarDropdown>
+      ),
+    },
+    footerRender: () => <Footer />,
+    bgLayoutImgList: [ /* ... */ ],
+    menuHeaderRender: undefined,
+    ...initialState?.settings,
+  };
+};
+```
+
+### Header actions (`actionsRender`)
+
+`actionsRender` returns an array of React elements rendered in the top-right area of the header. The default configuration renders two actions:
+
+- **`Question`** — A link icon that opens the Ant Design Pro documentation.
+- **`SelectLang`** — A language selector powered by UMI's i18n plugin (`@umijs/max`).
+
+```typescript src/components/RightContent/index.tsx
+export const Question: React.FC = () => (
+  <a
+    href="https://pro.ant.design/docs/getting-started"
+    target="_blank"
+    rel="noreferrer"
+    style={{ display: 'inline-flex', padding: '4px', fontSize: '18px', color: 'inherit' }}
+  >
+    <QuestionCircleOutlined />
+  </a>
+);
+
+export const SelectLang: React.FC = () => (
+  <UmiSelectLang style={{ padding: 4 }} />
+);
+```
+
+To add custom header actions, append elements to the `actionsRender` array:
+
+```typescript src/app.tsx
+actionsRender: () => [
+  <Question key="doc" />,
+  <SelectLang key="SelectLang" />,
+  <MyCustomAction key="custom" />,
+],
+```
+
+### User avatar and dropdown (`avatarProps`)
+
+`avatarProps` configures the user avatar displayed in the header. The `src` prop is read from `initialState.currentUser.avatar`, which is populated by the `getInitialState` function after a successful API call to `/api/currentUser`.
+
+The `render` prop wraps the avatar in an `AvatarDropdown` component that provides a logout menu item, and optionally profile and settings links:
+
+```typescript src/components/RightContent/AvatarDropdown.tsx
+// When the optional `menu` prop is true, profile/settings links are also shown
+const menuItems = [
+  ...(menu
+    ? [
+        { key: 'center',   icon: <UserOutlined />,    label: '个人中心' },
+        { key: 'settings', icon: <SettingOutlined />,  label: '个人设置' },
+        { type: 'divider' as const },
+      ]
+    : []),
+  {
+    key: 'logout',
+    icon: <LogoutOutlined />,
+    label: '退出登录',
+  },
+];
+```
+
+Clicking **logout** calls `outLogin()` (the `POST /api/login/outLogin` endpoint), clears the current user from initial state, and redirects to `/user/login`. The `center` and `settings` menu items navigate to `/account/center` and `/account/settings` respectively via `history.push`.
+
+### Menu item rendering (`menuItemRender`)
+
+By default, ProLayout renders menu items as plain `<a>` tags. The `menuItemRender` prop replaces this with UMI's `<Link>` component, which enables client-side navigation and route prefetching:
+
+```typescript
+menuItemRender: (item, dom) => {
+  if (item.path) {
+    return (
+      <Link to={item.path} prefetch>
+        {dom}
+      </Link>
+    );
+  }
+  return dom;
+},
+```
+
+### Footer (`footerRender`)
+
+`footerRender` receives a render function that returns the footer content. The default `Footer` component uses ProComponents' `DefaultFooter` to render links to the repository version, commit hash (when available), and a GitHub link:
+
+```typescript src/components/Footer/index.tsx
+const Footer: React.FC = () => (
+  <DefaultFooter
+    copyright={false}
+    style={{ background: 'none' }}
+    links={[
+      {
+        key: 'version',
+        title: `v${packageJson.version}`,
+        href: REPO,
+        blankTarget: true,
+      },
+      {
+        key: 'repo',
+        title: <><GithubOutlined style={{ marginRight: 8 }} />Ant Design Pro</>,
+        href: REPO,
+        blankTarget: true,
+      },
+    ]}
+  />
+);
+```
+
+To replace the footer, pass a different component to `footerRender`:
+
+```typescript src/app.tsx
+footerRender: () => <MyCustomFooter />,
+```
+
+To remove the footer entirely, return `false`:
+
+```typescript src/app.tsx
+footerRender: () => false,
+```
+
+### Background images (`bgLayoutImgList`)
+
+`bgLayoutImgList` accepts an array of image descriptor objects that are rendered as absolutely-positioned decorative images in the layout background. Each object supports `src`, `left`, `right`, `top`, `bottom`, `width`, and `height` properties:
+
+```typescript src/app.tsx
+bgLayoutImgList: [
+  {
+    src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/D2LWSqNny4sAAAAAAAAAAAAAFl94AQBr',
+    left: 85,
+    bottom: 100,
+    height: '303px',
+  },
+  {
+    src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/C2TWRpJpiC0AAAAAAAAAAAAAFl94AQBr',
+    bottom: -68,
+    right: -45,
+    height: '303px',
+  },
+  {
+    src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/F6vSTbj8KpYAAAAAAAAAAAAAFl94AQBr',
+    bottom: 0,
+    left: 0,
+    width: '331px',
+  },
+],
+```
+
+Set `bgLayoutImgList` to an empty array or omit it to display no background images.
+
+### Logo and site title (`menuHeaderRender`)
+
+The `menuHeaderRender` prop controls what appears at the top of the sidebar (or in the header for `top` layout). Setting it to `undefined` uses ProLayout's built-in rendering, which displays the `logo` and `title` from `defaultSettings.ts`.
+
+To render a custom logo area:
+
+```typescript src/app.tsx
+menuHeaderRender: (logo, title) => (
+  <div onClick={() => history.push('/')}>
+    {logo}
+    {title}
+  </div>
+),
+```
+
+## Fixed header and sidebar
+
+Two boolean settings in `defaultSettings.ts` control scroll behavior:
+
+```typescript config/defaultSettings.ts
+const Settings: ProLayoutProps = {
+  fixedHeader: false,  // true = sticky header
+  fixSiderbar: true,   // true = sticky sidebar
+};
+```
+
+When `fixedHeader` is `true`, the header bar remains at the top of the viewport as the page content scrolls. When `fixSiderbar` is `true`, the sidebar stays fixed while the main content area is scrollable.
+
+## SettingDrawer integration
+
+<Note>
+  The `SettingDrawer` is only rendered in development and CI environments (`process.env.NODE_ENV === 'development'` or `process.env.CI`). It is stripped from production builds. Use it to explore layout options during development, then commit your chosen values to `defaultSettings.ts`.
+</Note>
+
+Changes made in the `SettingDrawer` (layout mode, nav theme, primary color) are applied by updating `initialState.settings` via `setInitialState`. The `layout` export spreads `...initialState?.settings` at the end of its return value, so any setting in `defaultSettings.ts` can be overridden at runtime:
+
+```typescript src/app.tsx
+return {
+  // ...static config...
+  ...initialState?.settings, // Runtime overrides from SettingDrawer
+};
+```

@@ -1,0 +1,215 @@
+---
+title: "Data fetching and API requests"
+description: "Learn how Ant Design Pro's Axios-based request client works, including error handling strategies, interceptors, and service functions in src/services/."
+---
+
+Ant Design Pro uses the `@umijs/max` request plugin — a thin wrapper around [Axios](https://axios-http.com) — to manage all HTTP communication. The configuration lives in two files: `src/app.tsx` sets the base URL and wires in the error config, and `src/requestErrorConfig.ts` defines error handling strategy, interceptors, and the expected response envelope.
+
+## Request configuration in `src/app.tsx`
+
+The `request` export is consumed by the UMI Max runtime and applies to every call made through the `request` utility from `@umijs/max`:
+
+```typescript
+// src/app.tsx
+import type { RequestConfig } from '@umijs/max';
+import { errorConfig } from './requestErrorConfig';
+
+const isDev = process.env.NODE_ENV === 'development';
+
+export const request: RequestConfig = {
+  baseURL: isDev ? '' : 'https://pro-api.ant-design-demo.workers.dev',
+  ...errorConfig,
+};
+```
+
+In development, `baseURL` is empty so requests hit the local mock server (proxied via UMI's built-in mock layer). In production builds, requests go to `https://pro-api.ant-design-demo.workers.dev`. Replace this URL with your own API host when building a real application.
+
+## The response envelope
+
+All API responses are expected to conform to `ResponseStructure`, the interface defined in `src/requestErrorConfig.ts`:
+
+```typescript
+interface ResponseStructure {
+  success: boolean;
+  data: any;
+  errorCode?: number;
+  errorMessage?: string;
+  showType?: ErrorShowType;
+}
+```
+
+The `success` field is the primary signal. When it is `false`, the error pipeline kicks in and uses `showType` to decide how to surface the error to the user.
+
+## Error handling strategy
+
+`src/requestErrorConfig.ts` defines an `ErrorShowType` enum that controls how errors are displayed:
+
+```typescript
+enum ErrorShowType {
+  SILENT       = 0,  // suppress — do nothing
+  WARN_MESSAGE = 1,  // antd message.warning
+  ERROR_MESSAGE = 2, // antd message.error
+  NOTIFICATION  = 3, // antd notification.open
+  REDIRECT      = 9, // reserved for redirect (not yet implemented)
+}
+```
+
+The error handler covers three distinct failure categories:
+
+<CodeGroup>
+
+```typescript BizError (API logic error)
+// Thrown by errorThrower when success === false
+if (error.name === 'BizError') {
+  const { errorMessage, errorCode, showType } = error.info;
+  switch (showType) {
+    case ErrorShowType.SILENT:        break;
+    case ErrorShowType.WARN_MESSAGE:  message.warning(errorMessage); break;
+    case ErrorShowType.ERROR_MESSAGE: message.error(errorMessage);   break;
+    case ErrorShowType.NOTIFICATION:
+      notification.open({ title: errorCode, description: errorMessage });
+      break;
+    default: message.error(errorMessage);
+  }
+}
+```
+
+```typescript HTTP error (non-2xx status)
+// Axios populates error.response for non-2xx responses
+} else if (error.response) {
+  message.error(`Response status:${error.response.status}`);
+}
+```
+
+```typescript Network error (no response)
+// Request was sent but no response arrived
+} else if (error.request) {
+  message.error('None response! Please retry.');
+} else {
+  message.error('Request error, please retry.');
+}
+```
+
+</CodeGroup>
+
+Pass `{ skipErrorHandler: true }` in the request options to bypass this handler and deal with errors yourself — the `getInitialState` user fetch does exactly this to avoid showing error UI on every page load before the user is confirmed logged in.
+
+## Request and response interceptors
+
+`src/requestErrorConfig.ts` also registers two interceptors on every request:
+
+```typescript
+// Request interceptor — appends a token query param to every URL
+requestInterceptors: [
+  (config: RequestOptions) => {
+    const url = config?.url?.concat('?token=123');
+    return { ...config, url };
+  },
+],
+
+// Response interceptor — checks for a failed success flag
+responseInterceptors: [
+  (response) => {
+    const { data } = response as unknown as ResponseStructure;
+    if (data?.success === false) {
+      message.error('Request failed!');
+    }
+    return response;
+  },
+],
+```
+
+Replace the token logic in the request interceptor with your actual authentication header (for example, reading a JWT from `localStorage` and attaching it as `Authorization: Bearer <token>`).
+
+## Calling API services
+
+Service functions live in `src/services/ant-design-pro/` and import the `request` utility from `@umijs/max`. Each function is a thin typed wrapper around one API endpoint.
+
+<CodeGroup>
+
+```typescript GET request
+// src/services/ant-design-pro/api.ts
+import { request } from '@umijs/max';
+
+export async function currentUser(options?: { [key: string]: any }) {
+  return request<{ data: API.CurrentUser }>('/api/currentUser', {
+    method: 'GET',
+    ...(options || {}),
+  });
+}
+
+// Calling it from a component or getInitialState:
+const msg = await currentUser({ skipErrorHandler: true });
+const user = msg.data;
+```
+
+```typescript POST request with body
+// src/services/ant-design-pro/api.ts
+export async function login(
+  body: API.LoginParams,
+  options?: { [key: string]: any },
+) {
+  return request<API.LoginResult>('/api/login/account', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: body,
+    ...(options || {}),
+  });
+}
+
+// Calling it from the login page:
+const msg = await login({ username: 'admin', password: 'ant.design', type: 'account' });
+if (msg.status === 'ok') { /* success — currentAuthority === 'admin' */ }
+```
+
+```typescript GET request with query params
+// src/services/ant-design-pro/api.ts
+export async function rule(
+  params: { current?: number; pageSize?: number },
+  options?: { [key: string]: any },
+) {
+  return request<API.RuleList>('/api/rule', {
+    method: 'GET',
+    params: { ...params },
+    ...(options || {}),
+  });
+}
+
+// Calling it from a list page:
+const result = await rule({ current: 1, pageSize: 20 });
+```
+
+</CodeGroup>
+
+## Adding a new service function
+
+<Steps>
+  <Step title="Create or open a service file">
+    Add your function to an existing file in `src/services/ant-design-pro/`, or create a new file for a distinct domain. Follow the existing pattern of importing `request` from `@umijs/max`.
+  </Step>
+  <Step title="Write the typed function">
+    Define request parameters and return types using the `API` namespace from `typings.d.ts`, or inline types for one-off calls:
+
+    ```typescript
+    export async function getReport(
+      params: { startDate: string; endDate: string },
+      options?: { [key: string]: any },
+    ) {
+      return request<{ data: API.ReportData }>('/api/report', {
+        method: 'GET',
+        params,
+        ...(options || {}),
+      });
+    }
+    ```
+  </Step>
+  <Step title="Call it from your component or page">
+    Import and call the function directly. Error handling is automatic unless you pass `skipErrorHandler: true`:
+
+    ```typescript
+    import { getReport } from '@/services/ant-design-pro/api';
+
+    const data = await getReport({ startDate: '2024-01-01', endDate: '2024-12-31' });
+    ```
+  </Step>
+</Steps>
